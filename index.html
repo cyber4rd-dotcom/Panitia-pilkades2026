@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Survey & Voting Pilkades Desa Pakuan 2026</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <!-- Chart.js untuk Grafik Statistik -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- FontAwesome untuk Ikon -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts: Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Firebase SDK (Modular v10) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, updateDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        // Konfigurasi Firebase Anda
+              const firebaseConfig = {
+  apiKey: "AIzaSyDvgkUk1kFC0mp8dypavMBE1XEW866YxRk",
+  authDomain: "pilkades-pakuan-2026-177c2.firebaseapp.com",
+  projectId: "pilkades-pakuan-2026-177c2",
+  storageBucket: "pilkades-pakuan-2026-177c2.firebasestorage.app",
+  messagingSenderId: "801776996672",
+  appId: "1:801776996672:web:7cbaf14449eb3f9c7beaa5"
+};
+
+        // Inisialisasi Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // Ekspor ke window agar bisa diakses script utama
+        window.db = db;
+        window.fbCollections = { collection, addDoc, getDocs, deleteDoc, doc, updateDoc, onSnapshot };
+    </script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+
+    <!-- Header / Navbar -->
+    <header class="bg-emerald-700 text-white shadow-md sticky top-0 z-40">
+        <div class="max-w-6xl mx-auto px-4 py-3 flex justify-between items-center">
+            <div class="flex items-center space-x-3">
+                <div class="bg-white text-emerald-700 p-2 rounded-xl font-bold text-lg shadow">
+                    <i class="fa-solid fa-box-archive"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg leading-tight">Pilkades Desa Pakuan 2026</h1>
+                    <p class="text-xs text-emerald-200">Sistem Survey & Voting Resmi</p>
+                </div>
+            </div>
+            <div class="flex items-center space-x-2">
+                <button onclick="openAdminModal()" class="bg-emerald-800 hover:bg-emerald-900 text-xs px-3 py-2 rounded-lg font-medium transition border border-emerald-600 shadow-sm flex items-center gap-1.5">
+                    <i class="fa-solid fa-lock"></i> Mode Admin
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Navigasi Tab Utama -->
+    <nav class="bg-white border-b border-slate-200 shadow-sm">
+        <div class="max-w-6xl mx-auto px-4 flex space-x-4 sm:space-x-8 overflow-x-auto">
+            <button onclick="switchTab('voting')" id="nav-voting" class="tab-btn py-3 px-2 border-b-2 border-emerald-600 font-semibold text-emerald-700 text-sm sm:text-base flex items-center gap-2 whitespace-nowrap">
+                <i class="fa-solid fa-check-to-slot"></i> Form Survey & Vote
+            </button>
+            <button onclick="switchTab('candidates')" id="nav-candidates" class="tab-btn py-3 px-2 border-b-2 border-transparent text-slate-500 hover:text-slate-700 text-sm sm:text-base flex items-center gap-2 whitespace-nowrap">
+                <i class="fa-solid fa-users"></i> Profil Kandidat
+            </button>
+            <button onclick="switchTab('statistics')" id="nav-statistics" class="tab-btn py-3 px-2 border-b-2 border-transparent text-slate-500 hover:text-slate-700 text-sm sm:text-base flex items-center gap-2 whitespace-nowrap">
+                <i class="fa-solid fa-chart-pie"></i> Statistik Real-time
+            </button>
+        </div>
+    </nav>
+
+    <!-- Konten Utama -->
+    <main class="max-w-6xl mx-auto px-4 py-6 flex-grow w-full">
+
+        <!-- TAB 1: FORM VOTING -->
+        <section id="tab-voting" class="tab-content space-y-6">
+            <div class="bg-gradient-to-r from-emerald-600 to-teal-700 text-white p-6 rounded-2xl shadow-lg">
+                <h2 class="text-xl sm:text-2xl font-bold mb-2">Partisipasi Warga Desa Pakuan</h2>
+                <p class="text-emerald-100 text-sm sm:text-base">Gunakan hak suara Anda untuk memilih calon Kepala Desa Pakuan periode 2027–2032 secara transparan.</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- Form Input -->
+                <div class="md:col-span-1 bg-white p-6 rounded-2xl shadow-sm border border-slate-200 h-fit">
+                    <h3 class="font-bold text-slate-800 text-lg mb-4 pb-2 border-b border-slate-100">Data Pemilih</h3>
+                    <form id="voteForm" onsubmit="submitVote(event)" class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">NIK (Nomor Induk Kependudukan)</label>
+                            <input type="text" id="voterNik" placeholder="Masukkan 16 digit NIK" maxlength="16" class="w-full px-4 py-2.5 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none" required>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Nama Lengkap</label>
+                            <input type="text" id="voterName" placeholder="Sesuai KTP" class="w-full px-4 py-2.5 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none" required>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Wilayah RT / RW</label>
+                            <select id="voterRt" class="w-full px-4 py-2.5 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white" required>
+                                <option value="">-- Pilih RT/RW --</option>
+                                <option value="RT 01 / RW 01">RT 01 / RW 01</option>
+                                <option value="RT 02 / RW 01">RT 02 / RW 01</option>
+                                <option value="RT 01 / RW 02">RT 01 / RW 02</option>
+                                <option value="RT 02 / RW 02">RT 02 / RW 02</option>
+                            </select>
+                        </div>
+                        <input type="hidden" id="selectedCandidateId" value="">
+                        <div class="pt-2">
+                            <button type="submit" id="submitBtn" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-xl transition shadow-md disabled:bg-slate-300 disabled:cursor-not-allowed">
+                                Kirim Suara Pilihan
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Pilihan Kandidat Kartu -->
+                <div class="md:col-span-2 space-y-4">
+                    <h3 class="font-bold text-slate-800 text-lg">Pilih Kandidat Calon Kepala Desa</h3>
+                    <div id="votingCandidateCards" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <!-- Render Kandidat Dinamis -->
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB 2: PROFIL KANDIDAT -->
+        <section id="tab-candidates" class="tab-content hidden space-y-6">
+            <div class="text-center max-w-xl mx-auto mb-8">
+                <h2 class="text-2xl font-bold text-slate-800">Kandidat Kepala Desa Pakuan 2026</h2>
+                <p class="text-slate-500 text-sm mt-1">Kenali lebih dekat profil dan program kerja unggulan dari para calon pemimpin desa.</p>
+            </div>
+            <div id="candidateListContainer" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                <!-- Render Detail Kandidat -->
+            </div>
+        </section>
+
+        <!-- TAB 3: STATISTIK -->
+        <section id="tab-statistics" class="tab-content hidden space-y-6">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+                    <div>
+                        <p class="text-xs text-slate-500 font-semibold uppercase">Total Suara Masuk</p>
+                        <h4 id="statTotalVotes" class="text-2xl font-bold text-slate-800 mt-1">0</h4>
+                    </div>
+                    <div class="bg-emerald-100 text-emerald-700 p-3 rounded-xl text-xl">
+                        <i class="fa-solid fa-users-rectangle"></i>
+                    </div>
+                </div>
+                <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+                    <div>
+                        <p class="text-xs text-slate-500 font-semibold uppercase">RT/RW Berpartisipasi</p>
+                        <h4 class="text-2xl font-bold text-slate-800 mt-1">4 Wilayah</h4>
+                    </div>
+                    <div class="bg-blue-100 text-blue-700 p-3 rounded-xl text-xl">
+                        <i class="fa-solid fa-map-location-dot"></i>
+                    </div>
+                </div>
+                <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+                    <div>
+                        <p class="text-xs text-slate-500 font-semibold uppercase">Status Pemilihan</p>
+                        <h4 class="text-2xl font-bold text-emerald-600 mt-1">LIVE</h4>
+                    </div>
+                    <div class="bg-teal-100 text-teal-700 p-3 rounded-xl text-xl">
+                        <i class="fa-solid fa-circle-dot animate-pulse"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Grafik Chart -->
+            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                <h3 class="font-bold text-slate-800 text-base mb-4">Grafik Perolehan Suara Sementara</h3>
+                <div class="relative h-72 sm:h-96 w-full flex justify-center">
+                    <canvas id="voteChart"></canvas>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Modal Profil Detail Kandidat -->
+    <div id="candidateModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-lg rounded-2xl shadow-xl overflow-hidden max-h-[90vh] flex flex-col">
+            <div class="p-4 bg-slate-100 border-b border-slate-200 flex justify-between items-center">
+                <h3 class="font-bold text-slate-800 text-base">Detail Profil Kandidat</h3>
+                <button onclick="closeCandidateModal()" class="text-slate-400 hover:text-slate-600 text-lg px-2"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div id="modalCandidateContent" class="p-6 overflow-y-auto space-y-4 text-sm">
+                <!-- Konten dinamis modal -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Admin Panel -->
+    <div id="adminModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-4xl rounded-2xl shadow-xl overflow-hidden max-h-[95vh] flex flex-col">
+            <div class="p-4 bg-slate-800 text-white flex justify-between items-center">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-shield-halved text-emerald-400"></i>
+                    <h3 class="font-bold text-base">Panel Admin Desa Pakuan</h3>
+                </div>
+                <button onclick="closeAdminModal()" class="text-slate-300 hover:text-white text-lg"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            
+            <!-- Login State Admin -->
+            <div id="adminLoginArea" class="p-8 text-center max-w-sm mx-auto space-y-4 my-auto">
+                <div class="bg-emerald-100 text-emerald-700 w-16 h-16 rounded-full flex items-center justify-center mx-auto text-2xl">
+                    <i class="fa-solid fa-lock"></i>
+                </div>
+                <h4 class="font-bold text-slate-800 text-lg">Autentikasi Admin</h4>
+                <p class="text-xs text-slate-500">Masukkan PIN Admin untuk mengakses pengaturan data sistem.</p>
+                <input type="password" id="adminPinInput" placeholder="Masukkan PIN Admin" class="w-full px-4 py-2.5 border border-slate-300 rounded-xl text-sm text-center">
+                <button onclick="verifyAdminPin()" class="w-full bg-slate-800 hover:bg-slate-900 text-white font-semibold py-2.5 rounded-xl transition text-sm">Masuk Panel</button>
+            </div>
+
+            <!-- Dashboard Admin Konten -->
+            <div id="adminDashboardArea" class="hidden flex-grow overflow-y-auto p-6 space-y-6">
+                <div class="flex justify-between items-center border-b border-slate-200 pb-4">
+                    <div class="flex space-x-2">
+                        <button onclick="switchAdminTab('votes')" id="admin-tab-votes" class="px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-semibold">Data Suara Masuk</button>
+                        <button onclick="switchAdminTab('candidates')" id="admin-tab-candidates" class="px-4 py-2 bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold">Kelola Kandidat</button>
+                    </div>
+                    <button onclick="exportToCsv()" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-sm">
+                        <i class="fa-solid fa-file-excel"></i> Ekspor CSV / Excel
+                    </button>
+                </div>
+
+                <!-- Tab Konten: Data Suara -->
+                <div id="admin-content-votes" class="space-y-4">
+                    <div class="overflow-x-auto border border-slate-200 rounded-xl">
+                        <table class="w-full text-left text-xs">
+                            <thead class="bg-slate-100 text-slate-600 uppercase font-semibold">
+                                <tr>
+                                    <th class="p-3">Waktu</th>
+                                    <th class="p-3">NIK</th>
+                                    <th class="p-3">Nama Pemilih</th>
+                                    <th class="p-3">RT/RW</th>
+                                    <th class="p-3">Pilihan Kandidat</th>
+                                    <th class="p-3 text-center">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody id="adminVotesTableBody" class="divide-y divide-slate-200">
+                                <!-- Data dinamis -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Tab Konten: Kelola Kandidat -->
+                <div id="admin-content-candidates" class="hidden space-y-4">
+                    <button onclick="openAddCandidateModal()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-semibold">
+                        <i class="fa-solid fa-plus mr-1"></i> Tambah Kandidat Baru
+                    </button>
+                    <div id="adminCandidatesList" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <!-- List edit kandidat -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Form Tambah/Edit Kandidat Admin -->
+    <div id="candidateFormModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-lg rounded-2xl shadow-xl overflow-hidden max-h-[90vh] flex flex-col p-6 space-y-4">
+            <h3 id="candidateFormTitle" class="font-bold text-slate-800 text-base">Tambah Kandidat</h3>
+            <form id="candidateForm" onsubmit="saveCandidate(event)" class="space-y-3 text-xs">
+                <input type="hidden" id="editCandidateId">
+                <div>
+                    <label class="block font-semibold mb-1">Nomor Urut</label>
+                    <input type="text" id="candNumber" class="w-full px-3 py-2 border rounded-lg" required>
+                </div>
+                <div>
+                    <label class="block font-semibold mb-1">Nama Lengkap & Gelar</label>
+                    <input type="text" id="candName" class="w-full px-3 py-2 border rounded-lg" required>
+                </div>
+                <div>
+                    <label class="block font-semibold mb-1">Tagline / Slogan</label>
+                    <input type="text" id="candTagline" class="w-full px-3 py-2 border rounded-lg" required>
+                </div>
+                <div>
+                    <label class="block font-semibold mb-1">URL Foto Profil</label>
+                    <input type="url" id="candPhoto" class="w-full px-3 py-2 border rounded-lg" required>
+                </div>
+                <div>
+                    <label class="block font-semibold mb-1">Deskripsi / Program Singkat</label>
+                    <textarea id="candDeskripsi" rows="3" class="w-full px-3 py-2 border rounded-lg" required></textarea>
+                </div>
+                <div class="flex justify-end gap-2 pt-2">
+                    <button type="button" onclick="closeCandidateFormModal()" class="px-4 py-2 bg-slate-200 rounded-lg text-slate-700 font-semibold">Batal</button>
+                    <button type="submit" class="px-4 py-2 bg-emerald-600 text-white rounded-lg font-semibold">Simpan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-slate-200 py-4 mt-auto text-center text-xs text-slate-500">
+        <p>&copy; 2026 WAWAN S. Panitia pilkades pakuan. Sistem E-Voting Pilkades Terintegrasi Cloud.</p>
+    </footer>
+
+    <!-- Script Logika Aplikasi & Firebase Sync -->
+    <script>
+        // Data Default 4 Kandidat
+        let defaultCandidates = [
+            {
+                id: "1",
+                number: "01",
+                name: "SARINGGEH.",
+                tagline: "Desa Pakuan Maju, Transparan, dan Sejahtera",
+                photo: "https://cdn.phototourl.com/member/2026-10-30-4c04b47d-0890-4f98-8e16-ec5fbc08c739.jpg",
+                deskripsi: "Menjadikan Desa Pakuan sebagai desa mandiri berbasis teknologi, gotong royong, dan pelayanan publik yang responsif selama 24 jam."
+            },
+            {
+                id: "2",
+                number: "02",
+                name: "MARDAN HARIS.",
+                tagline: "Pakuan Bersih, Agamis, dan Inovatif",
+                photo: "https://cdn.phototourl.com/member/2026-10-30-d9a17252-6973-4d54-910c-a2ef538e4e64.jpg",
+                deskripsi: "Mewujudkan tata kelola pemerintahan desa yang bersih, akuntabel, serta mengoptimalkan fasilitas kesehatan dan infrastruktur."
+            },
+            {
+                id: "3",
+                number: "03",
+                name: "SANUSI",
+                tagline: "Gotong Royong Membangun Desa Pakuan",
+                photo: "https://cdn.phototourl.com/member/2026-10-30-211952bf-7629-4f64-bd99-ff5b9337756d.jpg",
+                deskripsi: "Membangun ekonomi kerakyatan yang kuat melalui sektor pertanian, perbaikan sistem irigasi, dan peningkatan keamanan lingkungan."
+            },
+            {
+                id: "4",
+                number: "04",
+                name: "ZULKARNAIN",
+                tagline: "Pakuan Kreatif, Muda, dan Berdaya Saing",
+                photo: 
+                "https://cdn.phototourl.com/member/2026-10-30-e4e6fc90-5b28-4aa8-bdbf-4e0301684a6d.jpg",
+                deskripsi: "Mendorong pemberdayaan pemuda, kemandirian UMKM berbasis digital, serta transparansi anggaran pembangunan desa."
+            }
+        ];
+
+        let candidates = [...defaultCandidates];
+        let votes = [];
+        let voteChartInstance = null;
+
+        // Inisialisasi Saat Halaman Dimuat
+        window.addEventListener('DOMContentLoaded', () => {
+            setTimeout(() => {
+                initFirebaseListeners();
+            }, 1000);
+            renderCandidates();
+            initChart();
+        });
+
+        // Sinkronisasi Real-time dengan Firebase Firestore
+        function initFirebaseListeners() {
+            if (!window.db) return;
+            const { collection, onSnapshot } = window.fbCollections;
+
+            // Listener Kandidat
+            onSnapshot(collection(window.db, "candidates"), (snapshot) => {
+                if (!snapshot.empty) {
+                    candidates = [];
+                    snapshot.forEach(doc => {
+                        candidates.push({ id: doc.id, ...doc.data() });
+                    });
+                } else {
+                    candidates = [...defaultCandidates];
+                }
+                renderCandidates();
+                updateChartData();
+            });
+
+            // Listener Suara / Votes
+            onSnapshot(collection(window.db, "votes"), (snapshot) => {
+                votes = [];
+                snapshot.forEach(doc => {
+                    votes.push({ id: doc.id, ...doc.data() });
+                });
+                updateStats();
+                updateChartData();
+                renderAdminVotesTable();
+            });
+        }
+
+        // Navigasi Tab
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.tab-btn').forEach(el => {
+                el.classList.remove('border-emerald-600', 'text-emerald-700', 'font-semibold');
+                el.classList.add('border-transparent', 'text-slate-500');
+            });
+            document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+            const activeNav = document.getElementById(`nav-${tabId}`);
+            activeNav.classList.add('border-emerald-600', 'text-emerald-700', 'font-semibold');
+            activeNav.classList.remove('border-transparent', 'text-slate-500');
+        }
+
+        // Render Kandidat
+        function renderCandidates() {
+            const votingContainer = document.getElementById('votingCandidateCards');
+            votingContainer.innerHTML = '';
+
+            const profileContainer = document.getElementById('candidateListContainer');
+            profileContainer.innerHTML = '';
+
+            candidates.forEach(c => {
+                // Kartu untuk Voting
+                votingContainer.innerHTML += `
+                    <div class="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col justify-between shadow-sm hover:border-emerald-500 transition cursor-pointer" onclick="selectCandidateCard('${c.id}')" id="card-cand-${c.id}">
+                        <div class="flex items-center space-x-3 mb-3">
+                            <img src="${c.photo}" alt="${c.name}" class="w-16 h-16 rounded-full object-cover border-2 border-emerald-600">
+                            <div>
+                                <span class="bg-emerald-100 text-emerald-800 text-xs font-bold px-2.5 py-0.5 rounded-full">No. Urut ${c.number}</span>
+                                <h4 class="font-bold text-slate-800 text-sm mt-1">${c.name}</h4>
+                            </div>
+                        </div>
+                        <p class="text-xs text-slate-500 italic mb-4">"${c.tagline}"</p>
+                        <div class="flex justify-between items-center pt-2 border-t border-slate-100">
+                            <button type="button" onclick="event.stopPropagation(); openCandidateModal('${c.id}')" class="text-emerald-600 font-semibold text-xs hover:underline">Lihat Profil</button>
+                            <span id="badge-select-${c.id}" class="text-xs font-bold text-slate-400"><i class="fa-regular fa-circle"></i> Pilih</span>
+                        </div>
+                    </div>
+                `;
+
+                // Kartu Profil Lengkap
+                profileContainer.innerHTML += `
+                    <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col justify-between">
+                        <div>
+                            <div class="text-center mb-4">
+                                <img src="${c.photo}" alt="${c.name}" class="w-24 h-24 rounded-full object-cover mx-auto border-4 border-emerald-600 shadow-md">
+                                <span class="inline-block mt-3 bg-emerald-100 text-emerald-800 text-xs font-bold px-3 py-1 rounded-full">Kandidat No. ${c.number}</span>
+                                <h3 class="font-bold text-slate-800 text-base mt-1">${c.name}</h3>
+                                <p class="text-xs text-slate-500 italic">"${c.tagline}"</p>
+                            </div>
+                            <p class="text-xs text-slate-600 mb-4 line-clamp-3">${c.deskripsi}</p>
+                        </div>
+                        <button onclick="openCandidateModal('${c.id}')" class="w-full bg-slate-100 hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 font-semibold py-2 rounded-xl transition text-xs">
+                            Baca Selengkapnya
+                        </button>
+                    </div>
+                `;
+            });
+        }
+
+        // Pilih Kandidat pada Form
+        let chosenCandidateId = null;
+        function selectCandidateCard(id) {
+            chosenCandidateId = id;
+            document.getElementById('selectedCandidateId').value = id;
+            
+            candidates.forEach(c => {
+                const card = document.getElementById(`card-cand-${c.id}`);
+                const badge = document.getElementById(`badge-select-${c.id}`);
+                if (card && badge) {
+                    if (c.id === id) {
+                        card.classList.add('border-emerald-600', 'bg-emerald-50/30');
+                        badge.innerHTML = '<i class="fa-solid fa-circle-check text-emerald-600"></i> Dipilih';
+                        badge.className = 'text-xs font-bold text-emerald-600';
+                    } else {
+                        card.classList.remove('border-emerald-600', 'bg-emerald-50/30');
+                        badge.innerHTML = '<i class="fa-regular fa-circle"></i> Pilih';
+                        badge.className = 'text-xs font-bold text-slate-400';
+                    }
+                }
+            });
+        }
+
+        // Submit Suara ke Firebase
+        async function submitVote(e) {
+            e.preventDefault();
+            const nik = document.getElementById('voterNik').value.trim();
+            const name = document.getElementById('voterName').value.trim();
+            const rt = document.getElementById('voterRt').value;
+            const candidateId = document.getElementById('selectedCandidateId').value;
+
+            if (!candidateId) {
+                alert('Silakan pilih salah satu <img src="" alt="">kandidat terlebih dahulu!');
+                return;
+            }
+
+            const existing = votes.find(v => v.nik === nik);
+            if (existing) {
+                alert('NIK ini sudah digunakan untuk melakukan voting sebelumnya!');
+                return;
+            }
+
+            const voteData = {
+                nik,
+                name,
+                rt,
+                candidateId,
+                timestamp: new Date().toLocaleString('id-ID')
+            };
+
+            try {
+                if (window.db) {
+                    const { collection, addDoc } = window.fbCollections;
+                    await addDoc(collection(window.db, "votes"), voteData);
+                } else {
+                    votes.push(voteData);
+                }
+
+                alert('Terima kasih! Suara Anda berhasil direkam.');
+                document.getElementById('voteForm').reset();
+                chosenCandidateId = null;
+                renderCandidates();
+                switchTab('statistics');
+            } catch (err) {
+                console.error(err);
+                alert('Gagal mengirim suara. Periksa koneksi internet Anda.');
+            }
+        }
+
+        // Statistik & Grafik
+        function updateStats() {
+            document.getElementById('statTotalVotes').innerText = votes.length;
+        }
+
+        function initChart() {
+            const ctx = document.getElementById('voteChart').getContext('2d');
+            voteChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: candidates.map(c => `No. ${c.number} (${c.name.split(',')[0]})`),
+                    datasets: [{
+                        label: 'Jumlah Suara',
+                        data: candidates.map(c => votes.filter(v => v.candidateId === c.id).length),
+                        backgroundColor: ['#059669', '#0d9488', '#2563eb', '#d97706'],
+                        borderRadius: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+                }
+            });
+        }
+
+        function updateChartData() {
+            if (!voteChartInstance) return;
+            voteChartInstance.data.labels = candidates.map(c => `No. ${c.number} (${c.name.split(',')[0]})`);
+            voteChartInstance.data.datasets[0].data = candidates.map(c => votes.filter(v => v.candidateId === c.id).length);
+            voteChartInstance.update();
+        }
+
+        // Modal Kandidat Detail
+        function openCandidateModal(id) {
+            const c = candidates.find(item => item.id === id);
+            if (!c) return;
+            const container = document.getElementById('modalCandidateContent');
+
+            container.innerHTML = `
+                <div class="text-center">
+                    <img src="${c.photo}" class="w-28 h-28 rounded-full object-cover mx-auto border-4 border-emerald-600 shadow-md">
+                    <h4 class="font-bold text-lg text-slate-800 mt-2">${c.name}</h4>
+                    <span class="bg-emerald-100 text-emerald-800 text-xs font-bold px-3 py-1 rounded-full">Kandidat No. Urut ${c.number}</span>
+                    <p class="text-xs text-slate-500 italic mt-1">"${c.tagline}"</p>
+                </div>
+                <div class="space-y-3 pt-2">
+                    <div>
+                        <h5 class="font-bold text-slate-700 text-xs uppercase text-emerald-700 mb-1">Profil & Program Unggulan</h5>
+                        <p class="text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-200 leading-relaxed">${c.deskripsi}</p>
+                    </div>
+                </div>
+            `;
+            document.getElementById('candidateModal').classList.remove('hidden');
+        }
+
+        function closeCandidateModal() {
+            document.getElementById('candidateModal').classList.add('hidden');
+        }
+
+        // Panel Admin Logic
+        function openAdminModal() {
+            document.getElementById('adminModal').classList.remove('hidden');
+        }
+
+        function closeAdminModal() {
+            document.getElementById('adminModal').classList.add('hidden');
+            document.getElementById('adminPinInput').value = '';
+        }
+
+        function verifyAdminPin() {
+            const pin = document.getElementById('adminPinInput').value;
+            if (pin === 'w4wan1234') {
+                document.getElementById('adminLoginArea').classList.add('hidden');
+                document.getElementById('adminDashboardArea').classList.remove('hidden');
+                renderAdminVotesTable();
+                renderAdminCandidatesList();
+            } else {
+                alert('PIN Admin salah!');
+            }
+        }
+
+        function switchAdminTab(tab) {
+            if (tab === 'votes') {
+                document.getElementById('admin-content-votes').classList.remove('hidden');
+                document.getElementById('admin-content-candidates').classList.add('hidden');
+                document.getElementById('admin-tab-votes').className = "px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-semibold";
+                document.getElementById('admin-tab-candidates').className = "px-4 py-2 bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold";
+            } else {
+                document.getElementById('admin-content-votes').classList.add('hidden');
+                document.getElementById('admin-content-candidates').classList.remove('hidden');
+                document.getElementById('admin-tab-candidates').className = "px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-semibold";
+                document.getElementById('admin-tab-votes').className = "px-4 py-2 bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold";
+                renderAdminCandidatesList();
+            }
+        }
+
+        function renderAdminVotesTable() {
+            const tbody = document.getElementById('adminVotesTableBody');
+            tbody.innerHTML = '';
+            if (votes.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-slate-400">Belum ada suara masuk.</td></tr>`;
+                return;
+            }
+            votes.forEach(v => {
+                const cand = candidates.find(c => c.id === v.candidateId);
+                const candName = cand ? `No. ${cand.number} - ${cand.name}` : 'Kandidat Dihapus';
+                tbody.innerHTML += `
+                    <tr class="hover:bg-slate-50">
+                        <td class="p-3">${v.timestamp || '-'}</td>
+                        <td class="p-3 font-mono">${v.nik}</td>
+                        <td class="p-3 font-medium">${v.name}</td>
+                        <td class="p-3">${v.rt}</td>
+                        <td class="p-3 font-semibold text-emerald-700">${candName}</td>
+                        <td class="p-3 text-center">
+                            <button onclick="deleteVote('${v.id}')" class="text-red-500 hover:text-red-700 px-2 py-1"><i class="fa-solid fa-trash"></i></button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        async function deleteVote(id) {
+            if (confirm('Yakin ingin menghapus data suara ini?')) {
+                if (window.db) {
+                    const { doc, deleteDoc } = window.fbCollections;
+                    await deleteDoc(doc(window.db, "votes", id));
+                } else {
+                    votes = votes.filter(v => v.id !== id);
+                }
+                renderAdminVotesTable();
+                updateStats();
+                updateChartData();
+            }
+        }
+
+        function renderAdminCandidatesList() {
+            const container = document.getElementById('adminCandidatesList');
+            container.innerHTML = '';
+            candidates.forEach(c => {
+                container.innerHTML += `
+                    <div class="border border-slate-200 p-4 rounded-xl flex items-center justify-between bg-slate-50">
+                        <div class="flex items-center space-x-3">
+                            <img src="${c.photo}" class="w-12 h-12 rounded-full object-cover">
+                            <div>
+                                <span class="text-xs font-bold text-emerald-700">No. Urut ${c.number}</span>
+                                <h5 class="font-bold text-slate-800 text-xs">${c.name}</h5>
+                            </div>
+                        </div>
+                        <div class="flex gap-1">
+                            <button onclick="openEditCandidateModal('${c.id}')" class="bg-blue-100 text-blue-700 px-2.5 py-1.5 rounded-lg text-xs font-semibold hover:bg-blue-200"><i class="fa-solid fa-pen"></i></button>
+                            <button onclick="deleteCandidate('${c.id}')" class="bg-red-100 text-red-700 px-2.5 py-1.5 rounded-lg text-xs font-semibold hover:bg-red-200"><i class="fa-solid fa-trash"></i></button>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        function openAddCandidateModal() {
+            document.getElementById('candidateFormTitle').innerText = "Tambah Kandidat Baru";
+            document.getElementById('candidateForm').reset();
+            document.getElementById('editCandidateId').value = '';
+            document.getElementById('candidateFormModal').classList.remove('hidden');
+        }
+
+        function openEditCandidateModal(id) {
+            const c = candidates.find(item => item.id === id);
+            if (!c) return;
+            document.getElementById('candidateFormTitle').innerText = "Edit Kandidat";
+            document.getElementById('editCandidateId').value = c.id;
+            document.getElementById('candNumber').value = c.number;
+            document.getElementById('candName').value = c.name;
+            document.getElementById('candTagline').value = c.tagline;
+            document.getElementById('candPhoto').value = c.photo;
+            document.getElementById('candDeskripsi').value = c.deskripsi;
+            document.getElementById('candidateFormModal').classList.remove('hidden');
+        }
+
+        function closeCandidateFormModal() {
+            document.getElementById('candidateFormModal').classList.add('hidden');
+        }
+
+        async function saveCandidate(e) {
+            e.preventDefault();
+            const id = document.getElementById('editCandidateId').value;
+            const number = document.getElementById('candNumber').value;
+            const name = document.getElementById('candName').value;
+            const tagline = document.getElementById('candTagline').value;
+            const photo = document.getElementById('candPhoto').value;
+            const deskripsi = document.getElementById('candDeskripsi').value;
+
+            const candObj = { number, name, tagline, photo, deskripsi };
+
+            if (window.db) {
+                const { collection, addDoc, doc, updateDoc } = window.fbCollections;
+                if (id) {
+                    await updateDoc(doc(window.db, "candidates", id), candObj);
+                } else {
+                    await addDoc(collection(window.db, "candidates"), candObj);
+                }
+            } else {
+                if (id) {
+                    const idx = candidates.findIndex(c => c.id === id);
+                    if (idx !== -1) candidates[idx] = { id, ...candObj };
+                } else {
+                    candidates.push({ id: Date.now().toString(), ...candObj });
+                }
+                renderCandidates();
+                updateChartData();
+            }
+
+            closeCandidateFormModal();
+            renderAdminCandidatesList();
+        }
+
+        async function deleteCandidate(id) {
+            if (confirm('Hapus kandidat ini?')) {
+                if (window.db) {
+                    const { doc, deleteDoc } = window.fbCollections;
+                    await deleteDoc(doc(window.db, "candidates", id));
+                } else {
+                    candidates = candidates.filter(c => c.id !== id);
+                }
+                renderCandidates();
+                renderAdminCandidatesList();
+                updateChartData();
+            }
+        }
+
+        // Ekspor ke CSV
+        function exportToCsv() {
+            let csvContent = "data:text/csv;charset=utf-8,Waktu,NIK,Nama Pemilih,RT/RW,Pilihan Kandidat\n";
+            votes.forEach(v => {
+                const cand = candidates.find(c => c.id === v.candidateId);
+                const candName = cand ? `No. ${cand.number} - ${cand.name}` : 'Tidak Diketahui';
+                csvContent += `"${v.timestamp}","${v.nik}","${v.name}","${v.rt}","${candName}"\n`;
+            });
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "laporan_survey_pilkades_pakuan_2026.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    </script>
+</body>
+</html>
