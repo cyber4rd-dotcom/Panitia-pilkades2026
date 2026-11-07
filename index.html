@@ -271,7 +271,8 @@
                 <input type="hidden" id="editCandidateId">
                 <div>
                     <label class="block font-semibold mb-1">Nomor Urut</label>
-                    <input type="text" id="candNumber" class="w-full px-3 py-2 border rounded-lg" required>
+<input type="file" id="candPhoto" accept="image/jpeg,image/png,image/webp" class="w-full px-3 py-2 border rounded-lg">
+<p class="text-sm text-gray-500">Pilih foto dari galeri HP (JPG, PNG, WEBP, maksimal 5 MB).</p>
                 </div>
                 <div>
                     <label class="block font-semibold mb-1">Nama Lengkap & Gelar</label>
@@ -731,38 +732,774 @@ async function verifyAdminPin() {
         }
 
         async function saveCandidate(e) {
-            e.preventDefault();
-            const id = document.getElementById('editCandidateId').value;
-            const number = document.getElementById('candNumber').value;
-            const name = document.getElementById('candName').value;
-            const tagline = document.getElementById('candTagline').value;
-            const photo = document.getElementById('candPhoto').value;
-            const deskripsi = document.getElementById('candDeskripsi').value;
+    e.preventDefault();
 
-            const candObj = { number, name, tagline, photo, deskripsi };
+    const id = document.getElementById('editCandidateId').value;
+    const number = document.getElementById('candNumber').value;
+    const name = document.getElementById('candName').value;
+    const tagline = document.getElementById('candTagline').value;
+    const deskripsi = document.getElementById('candDeskripsi').value;
 
-            if (window.db) {
-                const { collection, addDoc, doc, updateDoc } = window.fbCollections;
-                if (id) {
-                    await updateDoc(doc(window.db, "candidates", id), candObj);
-                } else {
-                    await addDoc(collection(window.db, "candidates"), candObj);
-                }
-            } else {
-                if (id) {
-                    const idx = candidates.findIndex(c => c.id === id);
-                    if (idx !== -1) candidates[idx] = { id, ...candObj };
-                } else {
-                    candidates.push({ id: Date.now().toString(), ...candObj });
-                }
-                renderCandidates();
-                updateChartData();
+    const file = document.getElementById('candPhoto').files[0];
+    let photo = window.currentCandidatePhoto || '';
+
+    try {
+        if (file) {
+            if (!file.type.startsWith('image/')) {
+                alert('Pilih file gambar.');
+                return;
             }
 
-            closeCandidateFormModal();
-            renderAdminCandidatesList();
+            if (file.size > 5 * 1024 * 1024) {
+                alert('Ukuran foto maksimal 5 MB.');
+                return;
+            }
+
+            if (!window.adminUploadToken) {
+                alert('Silakan login admin kembali.');
+                return;
+            }
+
+            const base64 = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result.split(',')[1]);
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+
+            const response = await fetch(
+                'https://upload-foto-pilkades.cyber4rd77.workers.dev/',
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + window.adminUploadToken
+                    },
+                    body: JSON.stringify({
+                        action: 'upload',
+                        fileName: file.name,
+                        mimeType: file.type,
+                        base64: base64
+                    })
+                }
+            );
+
+            const result = await response.json();
+
+            if (!response.ok || !result.url) {
+                throw new Error(result.error || 'Upload foto gagal.');
+            }
+
+            photo = result.url;
         }
 
+        if (!photo) {
+            alert('Silakan pilih foto kandidat.');
+            return;
+        }
+
+        const candObj = {
+            number,
+            name,
+            tagline,
+            photo,
+            deskripsi
+        };
+
+        if (!window.db) {
+            throw new Error('Database belum terhubung.');
+        }
+
+        const { collection, addDoc, doc, updateDoc } = window.fbCollections;
+
+        if (id) {
+            await updateDoc(doc(window.db, 'candidates', id), candObj);
+        } else {
+            await addDoc(collection(window.db, 'candidates'), candObj);
+        }
+
+        window.currentCandidatePhoto = photo;
+        alert('Data kandidat berhasil disimpan!');
+        closeCandidateFormModal();
+        renderAdminCandidatesList();
+
+    } catch (error) {
+        console.error(error);
+        alert('Gagal menyimpan: ' + error.message);
+    }
+        async function saveCandidate(e) {
+    e.preventDefault();
+
+    const id = document.getElementById('editCandidateId').value;
+    const number = document.getElementById('candNumber').value;
+    const name = document.getElementById('candName').value;
+    const tagline = document.getElementById('candTagline').value;
+    const deskripsi = document.getElementById('candDeskripsi').value;
+
+    const file = document.getElementById('candPhoto').files[0];
+    let photo = window.currentCandidatePhoto || '';
+
+    try {
+        if (file) {
+            if (!file.type.startsWith('image/')) {
+                alert('Pilih file gambar.');
+                return;
+            }
+
+            if (file.size > 5 * 1024 * 1024) {
+                alert('Ukuran foto maksimal 5 MB.');
+                return;
+            }
+
+            if (!window.adminUploadToken) {
+                alert('Silakan login admin kembali.');
+                return;
+            }
+
+            const base64 = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result.split(',')[1]);
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+
+            const response = await fetch(
+                'https://upload-foto-pilkades.cyber4rd77.workers.dev/',
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + window.adminUploadToken
+                    },
+                    body: JSON.stringify({
+                        action: 'upload',
+                        fileName: file.name,
+                        mimeType: file.type,
+                        base64: base64
+                    })
+                }
+            );
+
+            const result = await response.json();
+
+            if (!response.ok || !result.url) {
+                throw new Error(result.error || 'Upload foto gagal.');
+            }
+
+            photo = result.url;
+        }
+
+        if (!photo) {
+            alert('Silakan pilih foto kandidat.');
+            return;
+        }
+
+        const candObj = {
+            number,
+            name,
+            tagline,
+            photo,
+            deskripsi
+        };
+
+        if (!window.db) {
+            throw new Error('Database belum terhubung.');
+        }
+
+        const { collection, addDoc, doc, updateDoc } = window.fbCollections;
+
+        if (id) {
+            await updateDoc(doc(window.db, 'candidates', id), candObj);
+        } else {
+            await addDoc(collection(window.db, 'candidates'), candObj);
+        }
+
+        window.currentCandidatePhoto = photo;
+        alert('Data kandidat berhasil disimpan!');
+        closeCandidateFormModal();
+        renderAdminCandidatesList();
+
+    } catch (error) {
+        console.error(error);
+        alert('Gagal menyimpan: ' + error.message);
+    }
+    async function saveCandidate(e) {
+    e.preventDefault();
+
+    const id = document.getElementById('editCandidateId').value;
+    const number = document.getElementById('candNumber').value;
+    const name = document.getElementById('candName').value;
+    const tagline = document.getElementById('candTagline').value;
+    const deskripsi = document.getElementById('candDeskripsi').value;
+
+    const file = document.getElementById('candPhoto').files[0];
+    let photo = window.currentCandidatePhoto || '';
+
+    try {
+        if (file) {
+            if (!file.type.startsWith('image/')) {
+                alert('Pilih file gambar.');
+                return;
+            }
+
+            if (file.size > 5 * 1024 * 1024) {
+                alert('Ukuran foto maksimal 5 MB.');
+                return;
+            }
+
+            if (!window.adminUploadToken) {
+                alert('Silakan login admin kembali.');
+                return;
+            }
+
+            const base64 = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result.split(',')[1]);
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+
+            const response = await fetch(
+                'https://upload-foto-pilkades.cyber4rd77.workers.dev/',
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + window.adminUploadToken
+                    },
+                    body: JSON.stringify({
+                        action: 'upload',
+                        fileName: file.name,
+                        mimeType: file.type,
+                        base64: base64
+                    })
+                }
+            );
+
+            const result = await response.json();
+
+            if (!response.ok || !result.url) {
+                throw new Error(result.error || 'Upload foto gagal.');
+            }
+
+            photo = result.url;
+        }
+
+        if (!photo) {
+            alert('Silakan pilih foto kandidat.');
+            return;
+        }
+
+        const candObj = {
+            number,
+            name,
+            tagline,
+            photo,
+            deskripsi
+        };
+
+        if (!window.db) {
+            throw new Error('Database belum terhubung.');
+        }
+
+        const { collection, addDoc, doc, updateDoc } = window.fbCollections;
+
+        if (id) {
+            await updateDoc(doc(window.db, 'candidates', id), candObj);
+        } else {
+            await addDoc(collection(window.db, 'candidates'), candObj);
+        }
+
+        window.currentCandidatePhoto = photo;
+        alert('Data kandidat berhasil disimpan!');
+        closeCandidateFormModal();
+        renderAdminCandidatesList();
+
+    } catch (error) {
+        console.error(error);
+        alert('Gagal menyimpan: ' + error.message);
+    }
+    async function saveCandidate(e) {
+    e.preventDefault();
+
+    const id = document.getElementById('editCandidateId').value;
+    const number = document.getElementById('candNumber').value;
+    const name = document.getElementById('candName').value;
+    const tagline = document.getElementById('candTagline').value;
+    const deskripsi = document.getElementById('candDeskripsi').value;
+
+    const file = document.getElementById('candPhoto').files[0];
+    let photo = window.currentCandidatePhoto || '';
+
+    try {
+        if (file) {
+            if (!file.type.startsWith('image/')) {
+                alert('Pilih file gambar.');
+                return;
+            }
+
+            if (file.size > 5 * 1024 * 1024) {
+                alert('Ukuran foto maksimal 5 MB.');
+                return;
+            }
+
+            if (!window.adminUploadToken) {
+                alert('Silakan login admin kembali.');
+                return;
+            }
+
+            const base64 = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result.split(',')[1]);
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+
+            const response = await fetch(
+                'https://upload-foto-pilkades.cyber4rd77.workers.dev/',
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + window.adminUploadToken
+                    },
+                    body: JSON.stringify({
+                        action: 'upload',
+                        fileName: file.name,
+                        mimeType: file.type,
+                        base64: base64
+                    })
+                }
+            );
+
+            const result = await response.json();
+
+            if (!response.ok || !result.url) {
+                throw new Error(result.error || 'Upload foto gagal.');
+            }
+
+            photo = result.url;
+        }
+
+        if (!photo) {
+            alert('Silakan pilih foto kandidat.');
+            return;
+        }
+
+        const candObj = {
+            number,
+            name,
+            tagline,
+            photo,
+            deskripsi
+        };
+
+        if (!window.db) {
+            throw new Error('Database belum terhubung.');
+        }
+
+        const { collection, addDoc, doc, updateDoc } = window.fbCollections;
+
+        if (id) {
+            await updateDoc(doc(window.db, 'candidates', id), candObj);
+        } else {
+            await addDoc(collection(window.db, 'candidates'), candObj);
+        }
+
+        window.currentCandidatePhoto = photo;
+        alert('Data kandidat berhasil disimpan!');
+        closeCandidateFormModal();
+        renderAdminCandidatesList();
+
+    } catch (error) {
+        console.error(error);
+        alert('Gagal menyimpan: ' + error.message);
+    }
+        async function saveCandidate(e) {
+    e.preventDefault();
+
+    const id = document.getElementById('editCandidateId').value;
+    const number = document.getElementById('candNumber').value;
+    const name = document.getElementById('candName').value;
+    const tagline = document.getElementById('candTagline').value;
+    const deskripsi = document.getElementById('candDeskripsi').value;
+
+    const file = document.getElementById('candPhoto').files[0];
+    let photo = window.currentCandidatePhoto || '';
+
+    try {
+        if (file) {
+            if (!file.type.startsWith('image/')) {
+                alert('Pilih file gambar.');
+                return;
+            }
+
+            if (file.size > 5 * 1024 * 1024) {
+                alert('Ukuran foto maksimal 5 MB.');
+                return;
+            }
+
+            if (!window.adminUploadToken) {
+                alert('Silakan login admin kembali.');
+                return;
+            }
+
+            const base64 = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result.split(',')[1]);
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+
+            const response = await fetch(
+                'https://upload-foto-pilkades.cyber4rd77.workers.dev/',
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + window.adminUploadToken
+                    },
+                    body: JSON.stringify({
+                        action: 'upload',
+                        fileName: file.name,
+                        mimeType: file.type,
+                        base64: base64
+                    })
+                }
+            );
+
+            const result = await response.json();
+
+            if (!response.ok || !result.url) {
+                throw new Error(result.error || 'Upload foto gagal.');
+            }
+
+            photo = result.url;
+        }
+
+        if (!photo) {
+            alert('Silakan pilih foto kandidat.');
+            return;
+        }
+
+        const candObj = {
+            number,
+            name,
+            tagline,
+            photo,
+            deskripsi
+        };
+
+        if (!window.db) {
+            throw new Error('Database belum terhubung.');
+        }
+
+        const { collection, addDoc, doc, updateDoc } = window.fbCollections;
+
+        if (id) {
+            await updateDoc(doc(window.db, 'candidates', id), candObj);
+        } else {
+            await addDoc(collection(window.db, 'candidates'), candObj);
+        }
+
+        window.currentCandidatePhoto = photo;
+        alert('Data kandidat berhasil disimpan!');
+        closeCandidateFormModal();
+        renderAdminCandidatesList();
+
+    } catch (error) {
+        console.error(error);
+        alert('Gagal menyimpan: ' + error.message);
+    }
+        }async function saveCandidate(e) {
+    e.preventDefault();
+
+    const id = document.getElementById('editCandidateId').value;
+    const number = document.getElementById('candNumber').value;
+    const name = document.getElementById('candName').value;
+    const tagline = document.getElementById('candTagline').value;
+    const deskripsi = document.getElementById('candDeskripsi').value;
+
+    const file = document.getElementById('candPhoto').files[0];
+    let photo = window.currentCandidatePhoto || '';
+
+    try {
+        if (file) {
+            if (!file.type.startsWith('image/')) {
+                alert('Pilih file gambar.');
+                return;
+            }
+
+            if (file.size > 5 * 1024 * 1024) {
+                alert('Ukuran foto maksimal 5 MB.');
+                return;
+            }
+
+            if (!window.adminUploadToken) {
+                alert('Silakan login admin kembali.');
+                return;
+            }
+
+            const base64 = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result.split(',')[1]);
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+
+            const response = await fetch(
+                'https://upload-foto-pilkades.cyber4rd77.workers.dev/',
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + window.adminUploadToken
+                    },
+                    body: JSON.stringify({
+                        action: 'upload',
+                        fileName: file.name,
+                        mimeType: file.type,
+                        base64: base64
+                    })
+                }
+            );
+
+            const result = await response.json();
+
+            if (!response.ok || !result.url) {
+                throw new Error(result.error || 'Upload foto gagal.');
+            }
+
+            photo = result.url;
+        }
+
+        if (!photo) {
+            alert('Silakan pilih foto kandidat.');
+            return;
+        }
+
+        const candObj = {
+            number,
+            name,
+            tagline,
+            photo,
+            deskripsi
+        };
+
+        if (!window.db) {
+            throw new Error('Database belum terhubung.');
+        }
+
+        const { collection, addDoc, doc, updateDoc } = window.fbCollections;
+
+        if (id) {
+            await updateDoc(doc(window.db, 'candidates', id), candObj);
+        } else {
+            await addDoc(collection(window.db, 'candidates'), candObj);
+        }
+
+        window.currentCandidatePhoto = photo;
+        alert('Data kandidat berhasil disimpan!');
+        closeCandidateFormModal();
+        renderAdminCandidatesList();
+
+    } catch (error) {
+        console.error(error);
+        alert('Gagal menyimpan: ' + error.message);
+    }
+    async function saveCandidate(e) {
+    e.preventDefault();
+
+    const id = document.getElementById('editCandidateId').value;
+    const number = document.getElementById('candNumber').value;
+    const name = document.getElementById('candName').value;
+    const tagline = document.getElementById('candTagline').value;
+    const deskripsi = document.getElementById('candDeskripsi').value;
+
+    const file = document.getElementById('candPhoto').files[0];
+    let photo = window.currentCandidatePhoto || '';
+
+    try {
+        if (file) {
+            if (!file.type.startsWith('image/')) {
+                alert('Pilih file gambar.');
+                return;
+            }
+
+            if (file.size > 5 * 1024 * 1024) {
+                alert('Ukuran foto maksimal 5 MB.');
+                return;
+            }
+
+            if (!window.adminUploadToken) {
+                alert('Silakan login admin kembali.');
+                return;
+            }
+
+            const base64 = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result.split(',')[1]);
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+
+            const response = await fetch(
+                'https://upload-foto-pilkades.cyber4rd77.workers.dev/',
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + window.adminUploadToken
+                    },
+                    body: JSON.stringify({
+                        action: 'upload',
+                        fileName: file.name,
+                        mimeType: file.type,
+                        base64: base64
+                    })
+                }
+            );
+
+            const result = await response.json();
+
+            if (!response.ok || !result.url) {
+                throw new Error(result.error || 'Upload foto gagal.');
+            }
+
+            photo = result.url;
+        }
+
+        if (!photo) {
+            alert('Silakan pilih foto kandidat.');
+            return;
+        }
+
+        const candObj = {
+            number,
+            name,
+            tagline,
+            photo,
+            deskripsi
+        };
+
+        if (!window.db) {
+            throw new Error('Database belum terhubung.');
+        }
+
+        const { collection, addDoc, doc, updateDoc } = window.fbCollections;
+
+        if (id) {
+            await updateDoc(doc(window.db, 'candidates', id), candObj);
+        } else {
+            await addDoc(collection(window.db, 'candidates'), candObj);
+        }
+
+        window.currentCandidatePhoto = photo;
+        alert('Data kandidat berhasil disimpan!');
+        closeCandidateFormModal();
+        renderAdminCandidatesList();
+
+    } catch (error) {
+        console.error(error);
+        alert('Gagal menyimpan: ' + error.message);
+    }
+        async function saveCandidate(e) {
+    e.preventDefault();
+
+    const id = document.getElementById('editCandidateId').value;
+    const number = document.getElementById('candNumber').value;
+    const name = document.getElementById('candName').value;
+    const tagline = document.getElementById('candTagline').value;
+    const deskripsi = document.getElementById('candDeskripsi').value;
+
+    const file = document.getElementById('candPhoto').files[0];
+    let photo = window.currentCandidatePhoto || '';
+
+    try {
+        if (file) {
+            if (!file.type.startsWith('image/')) {
+                alert('Pilih file gambar.');
+                return;
+            }
+
+            if (file.size > 5 * 1024 * 1024) {
+                alert('Ukuran foto maksimal 5 MB.');
+                return;
+            }
+
+            if (!window.adminUploadToken) {
+                alert('Silakan login admin kembali.');
+                return;
+            }
+
+            const base64 = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result.split(',')[1]);
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+
+            const response = await fetch(
+                'https://upload-foto-pilkades.cyber4rd77.workers.dev/',
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + window.adminUploadToken
+                    },
+                    body: JSON.stringify({
+                        action: 'upload',
+                        fileName: file.name,
+                        mimeType: file.type,
+                        base64: base64
+                    })
+                }
+            );
+
+            const result = await response.json();
+
+            if (!response.ok || !result.url) {
+                throw new Error(result.error || 'Upload foto gagal.');
+            }
+
+            photo = result.url;
+        }
+
+        if (!photo) {
+            alert('Silakan pilih foto kandidat.');
+            return;
+        }
+
+        const candObj = {
+            number,
+            name,
+            tagline,
+            photo,
+            deskripsi
+        };
+
+        if (!window.db) {
+            throw new Error('Database belum terhubung.');
+        }
+
+        const { collection, addDoc, doc, updateDoc } = window.fbCollections;
+
+        if (id) {
+            await updateDoc(doc(window.db, 'candidates', id), candObj);
+        } else {
+            await addDoc(collection(window.db, 'candidates'), candObj);
+        }
+
+        window.currentCandidatePhoto = photo;
+        alert('Data kandidat berhasil disimpan!');
+        closeCandidateFormModal();
+        renderAdminCandidatesList();
+
+    } catch (error) {
+        console.error(error);
+        alert('Gagal menyimpan: ' + error.message);
+    }
+}
         async function deleteCandidate(id) {
             if (confirm('Hapus kandidat ini?')) {
                 if (window.db) {
