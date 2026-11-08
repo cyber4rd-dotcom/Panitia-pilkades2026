@@ -524,7 +524,7 @@
     alert('NIK harus terdiri dari 16 angka.');
     return;
 }
-
+alert('Jumlah data suara terbaca: ' + votes.length);
 const existing = votes.some(v =>
     String(v.nik || '').trim() === nik
 );
