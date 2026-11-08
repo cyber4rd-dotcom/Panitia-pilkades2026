@@ -509,57 +509,66 @@
 
         // Submit Suara ke Firebase
         async function submitVote(e) {
-            e.preventDefault();
-            const nik = document.getElementById('voterNik').value.trim();
-            const name = document.getElementById('voterName').value.trim();
-            const rt = document.getElementById('voterRt').value;
-            const candidateId = document.getElementById('selectedCandidateId').value;
+    e.preventDefault();
 
-            if (!candidateId) {
-                alert('Silakan pilih salah satu <img src="" alt="">kandidat terlebih dahulu!');
-                return;
-            }
+    const nik = document.getElementById('voterNik').value.trim();
+    const name = document.getElementById('voterName').value.trim();
+    const rt = document.getElementById('voterRt').value;
+    const candidateId = document.getElementById('selectedCandidateId').value;
 
-            if (!/^\d{16}$/.test(nik)) {
-    alert('NIK harus terdiri dari 16 angka.');
-    return;
-}
-alert('Jumlah data suara terbaca: ' + votes.length);
-const existing = votes.some(v =>
-    String(v.nik || '').trim() === nik
-);
+    if (!candidateId) {
+        alert('Silakan pilih salah satu kandidat terlebih dahulu!');
+        return;
+    }
 
-if (existing) {
-    alert('NIK Ganda!');
-    return;
-}
+    if (!nik) {
+        alert('NIK wajib diisi!');
+        return;
+    }
 
-            const voteData = {
-                nik,
-                name,
-                rt,
-                candidateId,
-                timestamp: new Date().toLocaleString('id-ID')
-            };
+    if (!window.db || !window.fbCollections) {
+        alert('Koneksi database belum tersedia. Silakan coba lagi.');
+        return;
+    }
 
-            try {
-                if (window.db) {
-                    const { collection, addDoc } = window.fbCollections;
-                    await addDoc(collection(window.db, "votes"), voteData);
-                } else {
-                    votes.push(voteData);
-                }
+    const submitButton = document.querySelector('#voteForm button[type="submit"]');
+    if (submitButton) submitButton.disabled = true;
 
-                alert('Terima kasih! Suara Anda berhasil direkam.');
-                document.getElementById('voteForm').reset();
-                chosenCandidateId = null;
-                renderCandidates();
-                switchTab('statistics');
-            } catch (err) {
-                console.error(err);
-                alert('Gagal mengirim suara. Periksa koneksi internet Anda.');
-            }
+    try {
+        const { collection, getDocs, addDoc, query, where } = window.fbCollections;
+
+        const votesRef = collection(window.db, "votes");
+        const nikQuery = query(votesRef, where("nik", "==", nik));
+        const snapshot = await getDocs(nikQuery);
+
+        if (!snapshot.empty) {
+            alert('NIK ini sudah digunakan untuk melakukan voting sebelumnya!');
+            return;
         }
+        voteData = {
+            nik,
+            name,
+            rt,
+            candidateId,
+            timestamp: new Date().toLocaleString('id-ID')
+        };
+
+        await addDoc(votesRef, voteData);
+
+        alert('Terima kasih! Suara Anda berhasil direkam.');
+
+        document.getElementById('voteForm').reset();
+        chosenCandidateId = null;
+        renderCandidates();
+        switchTab('statistics');
+
+    } catch (err) {
+        console.error('Kesalahan voting:', err);
+        alert('Gagal mengirim suara: ' + err.message);
+    } finally {
+        if (submitButton) submitButton.disabled = false;
+    }
+}
 
         // Statistik & Grafik
         function updateStats() {
@@ -953,4 +962,5 @@ async function verifyAdminPin() {
         }
     </script>
 </body>
+</html>
 </html>
