@@ -15,7 +15,7 @@
     <!-- Firebase SDK (Modular v10) -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, updateDoc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, updateDoc, setDoc, onSnapshot, query, where } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         // Konfigurasi Firebase Anda
               const firebaseConfig = {
@@ -33,7 +33,8 @@
 
         // Ekspor ke window agar bisa diakses script utama
         window.db = db;
-        window.fbCollections = { collection, addDoc, getDocs, deleteDoc, doc, updateDoc, setDoc, onSnapshot,query,were };
+        window.fbCollections = { collection, addDoc, getDocs, deleteDoc, doc, updateDoc, setDoc, onSnapshot,query,where };
+        console.log('FB COLLECTIONS:', window.fbCollections);
     </script>
     <style>
         body { font-family: 'Inter', sans-serif; }
@@ -519,7 +520,7 @@
     if (!candidateId) {
         alert('Silakan pilih salah satu kandidat terlebih dahulu!');
         return;
-    }
+    }        
 
     if (!nik) {
         alert('NIK wajib diisi!');
@@ -527,9 +528,12 @@
     }
 
     if (!window.db || !window.fbCollections) {
-        alert('Koneksi database belum tersedia. Silakan coba lagi.');
-        return;
-    }
+    alert(
+        'DB: ' + !!window.db +
+        '\nFB: ' + !!window.fbCollections
+    );
+    return;
+}
 
     const submitButton = document.querySelector('#voteForm button[type="submit"]');
     if (submitButton) submitButton.disabled = true;
@@ -963,4 +967,4 @@ async function verifyAdminPin() {
     </script>
 </body>
 </html>
-</html>
+    </html>
