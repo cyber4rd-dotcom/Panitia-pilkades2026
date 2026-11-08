@@ -833,22 +833,13 @@ async function verifyAdminPin() {
                 const candObj = { number, name, tagline, photo, deskripsi };
 
                 if (window.db) {
-    const { collection, addDoc, doc, setDoc } = window.fbCollections;
-
-    const saveTask = id
-        ? setDoc(doc(window.db, "candidates", id), candObj, { merge: true })
-        : addDoc(collection(window.db, "candidates"), candObj);
-
-    await Promise.race([
-        saveTask,
-        new Promise((_, reject) =>
-            setTimeout(() => reject(
-                new Error("Penyimpanan Firebase terlalu lama. Periksa koneksi internet.")
-            ), 15000)
-        )
-    ]);
-                
-       }
+                    const { collection, addDoc, doc, setDoc } = window.fbCollections;
+                    if (id) {
+                        // setDoc juga dapat membuat dokumen bila kandidat lama masih berupa data bawaan.
+                        await setDoc(doc(window.db, "candidates", id), candObj, { merge: true });
+                    } else {
+                        await addDoc(collection(window.db, "candidates"), candObj);
+                    }
                 } else {
                     if (id) {
                         const idx = candidates.findIndex(c => String(c.id) === String(id));
