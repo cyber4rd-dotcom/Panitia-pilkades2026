@@ -15,7 +15,7 @@
     <!-- Firebase SDK (Modular v10) -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, updateDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, updateDoc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         // Konfigurasi Firebase Anda
               const firebaseConfig = {
@@ -33,7 +33,7 @@
 
         // Ekspor ke window agar bisa diakses script utama
         window.db = db;
-        window.fbCollections = { collection, addDoc, getDocs, deleteDoc, doc, updateDoc, onSnapshot };
+        window.fbCollections = { collection, addDoc, getDocs, deleteDoc, doc, updateDoc, setDoc, onSnapshot };
     </script>
     <style>
         body { font-family: 'Inter', sans-serif; }
@@ -369,6 +369,20 @@
                     });
                 } else {
                     candidates = [...defaultCandidates];
+                    // Buat dokumen kandidat bawaan agar fitur edit/hapus tidak gagal.
+                    if (!window._seedingDefaultCandidates) {
+                        window._seedingDefaultCandidates = true;
+                        const { doc, setDoc } = window.fbCollections;
+                        Promise.all(defaultCandidates.map(c =>
+                            setDoc(doc(window.db, "candidates", c.id), {
+                                number: c.number, name: c.name, tagline: c.tagline,
+                                photo: c.photo, deskripsi: c.deskripsi
+                            })
+                        )).catch(err => {
+                            console.error("Gagal membuat data kandidat awal:", err);
+                            alert("Data kandidat awal gagal disiapkan. Periksa aturan akses Firestore.");
+                        }).finally(() => { window._seedingDefaultCandidates = false; });
+                    }
                 }
                 renderCandidates();
                 updateChartData();
@@ -588,6 +602,7 @@
         
 async function verifyAdminPin() {
     const pin = document.getElementById('adminPinInput').value.trim();
+    window.adminUploadToken = null;
 
     if (!pin) {
         alert('Masukkan password admin!');
@@ -707,74 +722,164 @@ async function verifyAdminPin() {
             });
         }
 
+        // Menyimpan foto lama saat admin mengedit kandidat.
+        let editCandidateCurrentPhoto = "";
+
         function openAddCandidateModal() {
             document.getElementById('candidateFormTitle').innerText = "Tambah Kandidat Baru";
             document.getElementById('candidateForm').reset();
             document.getElementById('editCandidateId').value = '';
+            editCandidateCurrentPhoto = "";
             document.getElementById('candidateFormModal').classList.remove('hidden');
         }
 
         function openEditCandidateModal(id) {
-            const c = candidates.find(item => item.id === id);
-            if (!c) return;
+            const c = candidates.find(item => String(item.id) === String(id));
+            if (!c) {
+                alert("Data kandidat tidak ditemukan.");
+                return;
+            }
             document.getElementById('candidateFormTitle').innerText = "Edit Kandidat";
             document.getElementById('editCandidateId').value = c.id;
-            document.getElementById('candNumber').value = c.number;
-            document.getElementById('candName').value = c.name;
-            document.getElementById('candTagline').value = c.tagline;
-            document.getElementById('candPhoto').value = c.photo;
-            document.getElementById('candDeskripsi').value = c.deskripsi;
+            document.getElementById('candNumber').value = c.number || "";
+            document.getElementById('candName').value = c.name || "";
+            document.getElementById('candTagline').value = c.tagline || "";
+            // Browser tidak mengizinkan mengisi input file dengan URL foto lama.
+            document.getElementById('candPhoto').value = "";
+            editCandidateCurrentPhoto = c.photo || "";
+            document.getElementById('candDeskripsi').value = c.deskripsi || "";
             document.getElementById('candidateFormModal').classList.remove('hidden');
         }
 
         function closeCandidateFormModal() {
             document.getElementById('candidateFormModal').classList.add('hidden');
+            document.getElementById('candidateForm').reset();
+            editCandidateCurrentPhoto = "";
+        }
+
+        function readFileAsBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    const result = String(reader.result || "");
+                    resolve(result.split(",")[1] || "");
+                };
+                reader.onerror = () => reject(new Error("Foto gagal dibaca dari galeri HP."));
+                reader.readAsDataURL(file);
+            });
+        }
+
+        async function uploadCandidatePhoto(file) {
+            if (!window.adminUploadToken) {
+                throw new Error("Sesi admin tidak ditemukan. Silakan login kembali.");
+            }
+            if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+                throw new Error("Format foto harus JPG, PNG, atau WEBP.");
+            }
+            if (file.size > 5 * 1024 * 1024) {
+                throw new Error("Ukuran foto maksimal 5 MB.");
+            }
+
+            const content = await readFileAsBase64(file);
+            const response = await fetch("https://upload-foto-pilkades.cyber4rd77.workers.dev/", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": "Bearer " + window.adminUploadToken
+                },
+                body: JSON.stringify({
+                    action: "upload",
+                    filename: file.name,
+                    content,
+                    mimeType: file.type
+                })
+            });
+
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok || !data.success || !data.photoUrl) {
+                throw new Error(data.error || data.detail || "Upload foto ke GitHub gagal.");
+            }
+            return data.photoUrl;
         }
 
         async function saveCandidate(e) {
             e.preventDefault();
-            const id = document.getElementById('editCandidateId').value;
-            const number = document.getElementById('candNumber').value;
-            const name = document.getElementById('candName').value;
-            const tagline = document.getElementById('candTagline').value;
-            const photo = document.getElementById('candPhoto').value;
-            const deskripsi = document.getElementById('candDeskripsi').value;
 
-            const candObj = { number, name, tagline, photo, deskripsi };
+            const submitButton = document.querySelector('#candidateForm button[type="submit"]');
+            const originalButtonText = submitButton.innerText;
+            submitButton.disabled = true;
+            submitButton.innerText = "Menyimpan...";
 
-            if (window.db) {
-                const { collection, addDoc, doc, updateDoc } = window.fbCollections;
-                if (id) {
-                    await updateDoc(doc(window.db, "candidates", id), candObj);
-                } else {
-                    await addDoc(collection(window.db, "candidates"), candObj);
+            try {
+                const id = document.getElementById('editCandidateId').value;
+                const number = document.getElementById('candNumber').value.trim();
+                const name = document.getElementById('candName').value.trim();
+                const tagline = document.getElementById('candTagline').value.trim();
+                const file = document.getElementById('candPhoto').files[0];
+                const deskripsi = document.getElementById('candDeskripsi').value.trim();
+
+                if (!number || !name || !tagline || !deskripsi) {
+                    throw new Error("Lengkapi semua data kandidat terlebih dahulu.");
                 }
-            } else {
-                if (id) {
-                    const idx = candidates.findIndex(c => c.id === id);
-                    if (idx !== -1) candidates[idx] = { id, ...candObj };
-                } else {
-                    candidates.push({ id: Date.now().toString(), ...candObj });
+
+                let photo = editCandidateCurrentPhoto;
+                if (file) {
+                    submitButton.innerText = "Mengunggah foto...";
+                    photo = await uploadCandidatePhoto(file);
+                } else if (!id && !photo) {
+                    throw new Error("Pilih foto kandidat dari galeri HP terlebih dahulu.");
                 }
-                renderCandidates();
-                updateChartData();
+
+                const candObj = { number, name, tagline, photo, deskripsi };
+
+                if (window.db) {
+                    const { collection, addDoc, doc, setDoc } = window.fbCollections;
+                    if (id) {
+                        // setDoc juga dapat membuat dokumen bila kandidat lama masih berupa data bawaan.
+                        await setDoc(doc(window.db, "candidates", id), candObj, { merge: true });
+                    } else {
+                        await addDoc(collection(window.db, "candidates"), candObj);
+                    }
+                } else {
+                    if (id) {
+                        const idx = candidates.findIndex(c => String(c.id) === String(id));
+                        if (idx !== -1) candidates[idx] = { id, ...candObj };
+                    } else {
+                        candidates.push({ id: Date.now().toString(), ...candObj });
+                    }
+                    renderCandidates();
+                    updateChartData();
+                }
+
+                closeCandidateFormModal();
+                renderAdminCandidatesList();
+                alert("Data kandidat berhasil disimpan.");
+            } catch (error) {
+                console.error("Simpan kandidat gagal:", error);
+                alert(error.message || "Gagal menyimpan kandidat. Periksa koneksi dan aturan Firebase.");
+            } finally {
+                submitButton.disabled = false;
+                submitButton.innerText = originalButtonText;
             }
-
-            closeCandidateFormModal();
-            renderAdminCandidatesList();
         }
 
         async function deleteCandidate(id) {
-            if (confirm('Hapus kandidat ini?')) {
+            if (!confirm("Hapus kandidat ini?")) return;
+
+            try {
                 if (window.db) {
                     const { doc, deleteDoc } = window.fbCollections;
                     await deleteDoc(doc(window.db, "candidates", id));
                 } else {
-                    candidates = candidates.filter(c => c.id !== id);
+                    candidates = candidates.filter(c => String(c.id) !== String(id));
+                    renderCandidates();
+                    renderAdminCandidatesList();
+                    updateChartData();
                 }
-                renderCandidates();
-                renderAdminCandidatesList();
-                updateChartData();
+                alert("Kandidat berhasil dihapus.");
+            } catch (error) {
+                console.error("Hapus kandidat gagal:", error);
+                alert("Gagal menghapus kandidat. Periksa aturan akses Firestore.");
             }
         }
 
