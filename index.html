@@ -520,11 +520,19 @@
                 return;
             }
 
-            const existing = votes.find(v => v.nik === nik);
-            if (existing) {
-                alert('NIK ini sudah digunakan untuk melakukan voting sebelumnya!');
-                return;
-            }
+            if (!/^\d{16}$/.test(nik)) {
+    alert('NIK harus terdiri dari 16 angka.');
+    return;
+}
+
+const existing = votes.some(v =>
+    String(v.nik || '').trim() === nik
+);
+
+if (existing) {
+    alert('NIK ini sudah digunakan untuk melakukan voting sebelumnya!');
+    return;
+}
 
             const voteData = {
                 nik,
