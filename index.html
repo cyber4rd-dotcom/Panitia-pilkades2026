@@ -410,20 +410,34 @@
 
         // Sinkronisasi Real-time dengan Firebase Firestore
         function initFirebaseListeners() {
-            if (!window.db) return;
-            const { collection, onSnapshot } = window.fbCollections;
+    if (!window.db || !window.fbCollections) {
+        console.error('Firebase belum siap');
+        return;
+    }
 
-            // Listener Suara / Votes
-            onSnapshot(collection(window.db, "votes"), (snapshot) => {
-                votes = [];
-                snapshot.forEach(doc => {
-                    votes.push({ id: doc.id, ...doc.data() });
-                });
-                updateStats();
-                updateChartData();
-                renderAdminVotesTable();
+    const { collection, onSnapshot } = window.fbCollections;
+
+    onSnapshot(
+        collection(window.db, "votes"),
+        (snapshot) => {
+            votes = [];
+
+            snapshot.forEach((doc) => {
+                votes.push({ id: doc.id, ...doc.data() });
             });
+
+            updateStats();
+            updateChartData();
+            renderAdminVotesTable();
+
+            console.log('Data suara berhasil dibaca:', votes.length);
+        },
+        (error) => {
+            console.error('Gagal membaca data suara:', error);
+            alert('Gagal membaca data suara: ' + error.message);
         }
+    );
+}
 
         // Navigasi Tab
         function switchTab(tabId) {
@@ -543,7 +557,14 @@
 
         const votesRef = collection(window.db, "votes");
         const nikQuery = query(votesRef, where("nik", "==", nik));
-        const snapshot = await getDocs(nikQuery);
+        const snapshot = await Promise.race([
+    getDocs(nikQuery),
+    new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Koneksi Firebase terlalu lama.')), 10000)
+    )
+]);
+        console.log('PEMERIKSAAN NIK SELESAI');
+        alert('PEMERIKSAAN NIK BERHASIL');
 
         if (!snapshot.empty) {
             alert('NIK ini sudah digunakan untuk melakukan voting sebelumnya!');
@@ -558,6 +579,7 @@
         };
 
         await addDoc(votesRef, voteData);
+        alert('PENYIMPANAN SUARA BERHASIL');
 
         alert('Terima kasih! Suara Anda berhasil direkam.');
 
@@ -967,4 +989,4 @@ async function verifyAdminPin() {
     </script>
 </body>
 </html>
-    </html>
+</html>
