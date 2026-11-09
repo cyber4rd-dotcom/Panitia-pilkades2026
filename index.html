@@ -555,30 +555,31 @@
     try {
         const { collection, getDocs, addDoc, query, where } = window.fbCollections;
 
-        const votesRef = collection(window.db, "votes");
-        const nikQuery = query(votesRef, where("nik", "==", nik));
-        const snapshot = await Promise.race([
-    getDocs(nikQuery),
-    new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Koneksi Firebase terlalu lama.')), 10000)
-    )
-]);
-        console.log('PEMERIKSAAN NIK SELESAI');
-        alert('PEMERIKSAAN NIK BERHASIL');
+        const voteData = {
+    nik,
+    name,
+    rt,
+    candidateId,
+    timestamp: new Date().toLocaleString('id-ID')
+};
 
-        if (!snapshot.empty) {
-            alert('NIK ini sudah digunakan untuk melakukan voting sebelumnya!');
-            return;
-        }
-        voteData = {
-            nik,
-            name,
-            rt,
-            candidateId,
-            timestamp: new Date().toLocaleString('id-ID')
-        };
+const response = await fetch(
+    'https://upload-foto-pilkades.cyber4rd77.workers.dev/',
+    {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            action: 'saveVote',
+            ...voteData
+        })
+    }
+);
 
-        await addDoc(votesRef, voteData);
+const result = await response.json();
+
+if (!response.ok || !result.success) {
+    throw new Error(result.message || 'Gagal menyimpan suara');
+}
         alert('PENYIMPANAN SUARA BERHASIL');
 
         alert('Terima kasih! Suara Anda berhasil direkam.');
