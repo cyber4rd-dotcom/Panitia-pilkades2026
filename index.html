@@ -624,10 +624,19 @@ if (!response.ok || !result.success) {
         }
 
         function updateChartData() {
-            if (!voteChartInstance) return;
-            voteChartInstance.data.labels = candidates.map(c => `No. ${c.number} (${c.name.split(',')[0]})`);
-            voteChartInstance.data.datasets[0].data = candidates.map(c => votes.filter(v => v.candidateId === c.id).length);
-            voteChartInstance.update();
+    if (!voteChartInstance) return;
+
+    voteChartInstance.data.labels = candidates.map(
+        c => `No. ${c.number} (${c.name.split(',')[0]})`
+    );
+
+    voteChartInstance.data.datasets[0].data = candidates.map(c =>
+        votes.filter(v =>
+            String(v.candidateId) === String(c.id)
+        ).length
+    );
+
+    voteChartInstance.update();
         }
 
         // Modal Kandidat Detail
