@@ -101,13 +101,14 @@
                             <input type="text" id="voterName" placeholder="Sesuai KTP" class="w-full px-4 py-2.5 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none" required>
                         </div>
                         <div>
-                            <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Wilayah RT / RW</label>
-                            <select id="voterRt" class="w-full px-4 py-2.5 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white" required>
-                                <option value="">-- Pilih RT/RW --</option>
-                                <option value="RT 01 / RW 01">RT 01 / RW 01</option>
-                                <option value="RT 02 / RW 01">RT 02 / RW 01</option>
-                                <option value="RT 01 / RW 02">RT 01 / RW 02</option>
-                                <option value="RT 02 / RW 02">RT 02 / RW 02</option>
+                            <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Wilayah Dusun / PAKUAN</label>
+                            <select id="voter DUSUN" class="w-full px-4 py-2.5 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white" required>
+                                <option value="">-- Pilih DUSUN/DESA --</option>
+                                <option value="PESANTEK / PAKUAN">PESANTEK / PAKUAN</option>
+                                <option value="JUARANG MALANG / PAKUAN">JURANG MALANG / PAKUAN</option>
+                                <option value="JURANG MEKAR / PAKUAN">JURANG MEKAR / PAKUAN</option>
+                                <option value="KUMBI / PAKUAN">KUMBI / PAKUAN</option>
+                                <option value=TATAR DAYE / PAKUAN">TATAR DAYE / PAKUAN</option>                          
                             </select>
                         </div>
                         <input type="hidden" id="selectedCandidateId" value="">
@@ -154,7 +155,7 @@
                 </div>
                 <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
                     <div>
-                        <p class="text-xs text-slate-500 font-semibold uppercase">RT/RW Berpartisipasi</p>
+                        <p class="text-xs text-slate-500 font-semibold uppercase">Dusun/Desa Berpartisipasi</p>
                         <h4 class="text-2xl font-bold text-slate-800 mt-1">4 Wilayah</h4>
                     </div>
                     <div class="bg-blue-100 text-blue-700 p-3 rounded-xl text-xl">
@@ -239,7 +240,7 @@
                                     <th class="p-3">Waktu</th>
                                     <th class="p-3">NIK</th>
                                     <th class="p-3">Nama Pemilih</th>
-                                    <th class="p-3">RT/RW</th>
+                                    <th class="p-3">Dusun/Desa</th>
                                     <th class="p-3">Pilihan Kandidat</th>
                                     <th class="p-3 text-center">Aksi</th>
                                 </tr>
@@ -528,7 +529,7 @@
 
     const nik = document.getElementById('voterNik').value.trim();
     const name = document.getElementById('voterName').value.trim();
-    const rt = document.getElementById('voterRt').value;
+    const dusun = document.getElementById('voterDusun').value;
     const candidateId = document.getElementById('selectedCandidateId').value;
 
     if (!candidateId) {
@@ -558,7 +559,7 @@
         const voteData = {
     nik,
     name,
-    rt,
+    dusun,
     candidateId,
     timestamp: new Date().toLocaleString('id-ID')
 };
@@ -754,7 +755,7 @@ async function verifyAdminPin() {
                         <td class="p-3">${v.timestamp || '-'}</td>
                         <td class="p-3 font-mono">${v.nik}</td>
                         <td class="p-3 font-medium">${v.name}</td>
-                        <td class="p-3">${v.rt}</td>
+                        <td class="p-3">${v.dusun}</td>
                         <td class="p-3 font-semibold text-emerald-700">${candName}</td>
                         <td class="p-3 text-center">
                             <button onclick="deleteVote('${v.id}')" class="text-red-500 hover:text-red-700 px-2 py-1"><i class="fa-solid fa-trash"></i></button>
@@ -982,11 +983,11 @@ async function verifyAdminPin() {
 
         // Ekspor ke CSV
         function exportToCsv() {
-            let csvContent = "data:text/csv;charset=utf-8,Waktu,NIK,Nama Pemilih,RT/RW,Pilihan Kandidat\n";
+            let csvContent = "data:text/csv;charset=utf-8,Waktu,NIK,Nama Pemilih,DUSUN/DESA,Pilihan Kandidat\n";
             votes.forEach(v => {
                 const cand = candidates.find(c => c.id === v.candidateId);
                 const candName = cand ? `No. ${cand.number} - ${cand.name}` : 'Tidak Diketahui';
-                csvContent += `"${v.timestamp}","${v.nik}","${v.name}","${v.rt}","${candName}"\n`;
+                csvContent += `"${v.timestamp}","${v.nik}","${v.name}","${v.dusun}","${candName}"\n`;
             });
             const encodedUri = encodeURI(csvContent);
             const link = document.createElement("a");
