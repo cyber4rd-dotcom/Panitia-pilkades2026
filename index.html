@@ -568,12 +568,11 @@ async function submitVote(e) {
 
         const data = await response.json();
 
-        if (!response.ok || !data.success) {
-            throw new Error(
-                data.error || 'Gagal menyimpan suara.'
-            );
-        }
-
+       if (!response.ok || !data.success) {
+    console.error("RESPONS WORKER:", response.status, data);
+    alert("Gagal menyimpan suara:\n" + JSON.stringify(data));
+    return;
+       }
         alert('Terima kasih! Suara Anda berhasil disimpan.');
 
         e.target.reset();
