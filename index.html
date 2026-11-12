@@ -12,33 +12,705 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Google Fonts: Inter -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <!-- Firebase SDK (Modular v10) -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, updateDoc, setDoc, onSnapshot, query, where } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    
 
-        // Konfigurasi Firebase Anda
-              const firebaseConfig = {
-  apiKey: "AIzaSyDvgkUk1kFC0mp8dypavMBE1XEW866YxRk",
-  authDomain: "pilkades-pakuan-2026-177c2.firebaseapp.com",
-  projectId: "pilkades-pakuan-2026-177c2",
-  storageBucket: "pilkades-pakuan-2026-177c2.firebasestorage.app",
-  messagingSenderId: "801776996672",
-  appId: "1:801776996672:web:7cbaf14449eb3f9c7beaa5"
-};
+const WORKER_URL = "https://upload-foto-pilkades.cyber4rd77.workers.dev/";
 
-        // Inisialisasi Firebase
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
+let defaultCandidates = [
+    {
+        id: "1", number: "01", name: "SARINGGEH.",
+        tagline: "Desa Pakuan Maju, Transparan, dan Sejahtera",
+        photo: "https://cdn.phototourl.com/member/2026-10-30-4c04b47d-0890-4f98-8e16-ec5fbc08c739.jpg",
+        deskripsi: "Menjadikan Desa Pakuan sebagai desa mandiri berbasis teknologi, gotong royong, dan pelayanan publik yang responsif selama 24 jam."
+    },
+    {
+        id: "2", number: "02", name: "MARDAN HARIS.",
+        tagline: "Pakuan Bersih, Agamis, dan Inovatif",
+        photo: "https://cdn.phototourl.com/member/2026-10-30-d9a17252-6973-4d54-910c-a2ef538e4e64.jpg",
+        deskripsi: "Mewujudkan tata kelola pemerintahan desa yang bersih, akuntabel, serta mengoptimalkan fasilitas kesehatan dan infrastruktur."
+    },
+    {
+        id: "3", number: "03", name: "SANUSI",
+        tagline: "Gotong Royong Membangun Desa Pakuan",
+        photo: "https://cdn.phototourl.com/member/2026-10-30-211952bf-7629-4f64-bd99-ff5b9337756d.jpg",
+        deskripsi: "Membangun ekonomi kerakyatan yang kuat melalui sektor pertanian, perbaikan sistem irigasi, dan peningkatan keamanan lingkungan."
+    },
+    {
+        id: "4", number: "04", name: "ZULKARNAIN",
+        tagline: "Pakuan Kreatif, Muda, dan Berdaya Saing",
+        photo: "https://cdn.phototourl.com/member/2026-10-30-e4e6fc90-5b28-4aa8-bdbf-4e0301684a6d.jpg",
+        deskripsi: "Mendorong pemberdayaan pemuda, kemandirian UMKM berbasis digital, serta transparansi anggaran pembangunan desa."
+    }
+];
 
-        // Ekspor ke window agar bisa diakses script utama
-        window.db = db;
-        window.fbCollections = { collection, addDoc, getDocs, deleteDoc, doc, updateDoc, setDoc, onSnapshot,query,where };
-        console.log('FB COLLECTIONS:', window.fbCollections);
-    </script>
-    <style>
-        body { font-family: 'Inter', sans-serif; }
-    </style>
+let candidates = [...defaultCandidates];
+let votes = [];
+let publicResults = [];
+let voteChartInstance = null;
+let chosenCandidateId = null;
+let editCandidateCurrentPhoto = "";
+
+function escapeHTML(value) {
+    return String(value ?? "").replace(/[&<>"']/g, char => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;",
+        '"': "&quot;", "'": "&#039;"
+    })[char]);
+}
+
+function getAdminHeaders() {
+    if (!window.adminUploadToken) {
+        throw new Error("Sesi admin berakhir. Silakan login kembali.");
+    }
+    return {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + window.adminUploadToken
+    };
+}
+
+async function workerRequest(action, payload = {}, admin = false) {
+    const headers = { "Content-Type": "application/json" };
+
+    if (admin) {
+        Object.assign(headers, getAdminHeaders());
+    }
+
+    const response = await fetch(WORKER_URL, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ action, ...payload })
+    });
+
+    const data = await response.json().catch(() => ({}));
+
+    if (response.status === 401) {
+        window.adminUploadToken = null;
+        document.getElementById("adminDashboardArea").classList.add("hidden");
+        document.getElementById("adminLoginArea").classList.remove("hidden");
+        throw new Error("Sesi admin berakhir. Silakan login kembali.");
+    }
+
+    if (!response.ok || data.success === false) {
+        throw new Error(data.error || data.message || `Kesalahan server (${response.status})`);
+    }
+
+    return data;
+}
+
+window.addEventListener("DOMContentLoaded", async () => {
+    renderCandidates();
+    initChart();
+
+    await loadCloudCandidates();
+    await loadPublicResults();
+
+    // Perbarui statistik secara berkala dari Cloudflare.
+    setInterval(loadPublicResults, 15000);
+});
+
+async function loadCloudCandidates() {
+    try {
+        const data = await workerRequest("listCandidates");
+
+        if (Array.isArray(data.candidates)) {
+            candidates = data.candidates;
+            renderCandidates();
+            updateChartData();
+
+            if (window.adminUploadToken) {
+                renderAdminCandidatesList();
+            }
+        }
+    } catch (error) {
+        console.error("Gagal memuat kandidat:", error);
+    }
+}
+
+async function loadPublicResults() {
+    try {
+        const data = await workerRequest("getResults");
+
+        publicResults = data.results || data.totals || data.candidates || [];
+        updateStats();
+        updateChartData();
+    } catch (error) {
+        console.error("Gagal memuat statistik publik:", error);
+    }
+}
+
+function getVoteCount(candidateId) {
+    const item = publicResults.find(row =>
+        String(row.candidateId ?? row.id) === String(candidateId)
+    );
+
+    if (!item) return 0;
+
+    return Number(
+        item.totalVotes ?? item.total ?? item.votes ?? item.count ?? 0
+    );
+}
+
+function switchTab(tabId) {
+    document.querySelectorAll(".tab-content").forEach(el =>
+        el.classList.add("hidden")
+    );
+
+    document.querySelectorAll(".tab-btn").forEach(el => {
+        el.classList.remove("border-emerald-600", "text-emerald-700", "font-semibold");
+        el.classList.add("border-transparent", "text-slate-500");
+    });
+
+    document.getElementById(`tab-${tabId}`).classList.remove("hidden");
+
+    const activeNav = document.getElementById(`nav-${tabId}`);
+    activeNav.classList.add("border-emerald-600", "text-emerald-700", "font-semibold");
+    activeNav.classList.remove("border-transparent", "text-slate-500");
+
+    if (tabId === "statistics") {
+        loadPublicResults();
+    }
+}
+
+function renderCandidates() {
+    const votingContainer = document.getElementById("votingCandidateCards");
+    const profileContainer = document.getElementById("candidateListContainer");
+
+    votingContainer.innerHTML = "";
+    profileContainer.innerHTML = "";
+
+    candidates.forEach(c => {
+        const id = escapeHTML(c.id);
+        const name = escapeHTML(c.name);
+        const number = escapeHTML(c.number);
+        const tagline = escapeHTML(c.tagline);
+        const photo = escapeHTML(c.photo);
+        const description = escapeHTML(c.deskripsi);
+
+        votingContainer.innerHTML += `
+            <div class="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col justify-between shadow-sm hover:border-emerald-500 transition cursor-pointer"
+                 onclick="selectCandidateCard('${id}')" id="card-cand-${id}">
+                <div class="flex items-center space-x-3 mb-3">
+                    <img src="${photo}" alt="${name}" class="w-16 h-16 rounded-full object-cover border-2 border-emerald-600">
+                    <div>
+                        <span class="bg-emerald-100 text-emerald-800 text-xs font-bold px-2.5 py-0.5 rounded-full">No. Urut ${number}</span>
+                        <h4 class="font-bold text-slate-800 text-sm mt-1">${name}</h4>
+                    </div>
+                </div>
+                <p class="text-xs text-slate-500 italic mb-4">"${tagline}"</p>
+                <div class="flex justify-between items-center pt-2 border-t border-slate-100">
+                    <button type="button" onclick="event.stopPropagation();openCandidateModal('${id}')"
+                        class="text-emerald-600 font-semibold text-xs hover:underline">Lihat Profil</button>
+                    <span id="badge-select-${id}" class="text-xs font-bold text-slate-400">
+                        <i class="fa-regular fa-circle"></i> Pilih
+                    </span>
+                </div>
+            </div>`;
+
+        profileContainer.innerHTML += `
+            <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col justify-between">
+                <div>
+                    <div class="text-center mb-4">
+                        <img src="${photo}" alt="${name}" class="w-24 h-24 rounded-full object-cover mx-auto border-4 border-emerald-600 shadow-md">
+                        <span class="inline-block mt-3 bg-emerald-100 text-emerald-800 text-xs font-bold px-3 py-1 rounded-full">Kandidat No. ${number}</span>
+                        <h3 class="font-bold text-slate-800 text-base mt-1">${name}</h3>
+                        <p class="text-xs text-slate-500 italic">"${tagline}"</p>
+                    </div>
+                    <p class="text-xs text-slate-600 mb-4 line-clamp-3">${description}</p>
+                </div>
+                <button onclick="openCandidateModal('${id}')"
+                    class="w-full bg-slate-100 hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 font-semibold py-2 rounded-xl transition text-xs">
+                    Baca Selengkapnya
+                </button>
+            </div>`;
+    });
+
+    if (chosenCandidateId) {
+        selectCandidateCard(chosenCandidateId);
+    }
+}
+
+function selectCandidateCard(id) {
+    chosenCandidateId = String(id);
+    document.getElementById("selectedCandidateId").value = chosenCandidateId;
+
+    candidates.forEach(c => {
+        const card = document.getElementById(`card-cand-${c.id}`);
+        const badge = document.getElementById(`badge-select-${c.id}`);
+
+        if (!card || !badge) return;
+
+        if (String(c.id) === chosenCandidateId) {
+            card.classList.add("border-emerald-600", "bg-emerald-50/30");
+            badge.innerHTML = '<i class="fa-solid fa-circle-check text-emerald-600"></i> Dipilih';
+            badge.className = "text-xs font-bold text-emerald-600";
+        } else {
+            card.classList.remove("border-emerald-600", "bg-emerald-50/30");
+            badge.innerHTML = '<i class="fa-regular fa-circle"></i> Pilih';
+            badge.className = "text-xs font-bold text-slate-400";
+        }
+    });
+}
+
+async function submitVote(e) {
+    e.preventDefault();
+
+    const nik = document.getElementById("voterNik").value.trim();
+    const name = document.getElementById("voterName").value.trim();
+    const rt = document.getElementById("voterDusun").value;
+    const candidateId = document.getElementById("selectedCandidateId").value;
+    const button = document.getElementById("submitBtn");
+
+    if (!/^\d{16}$/.test(nik)) {
+        alert("NIK harus terdiri dari 16 digit angka.");
+        return;
+    }
+
+    if (!name || !rt || !candidateId) {
+        alert("Lengkapi data pemilih dan pilih kandidat terlebih dahulu.");
+        return;
+    }
+
+    const oldText = button.textContent;
+    button.disabled = true;
+    button.textContent = "Mengirim suara...";
+
+    try {
+        await workerRequest("saveVote", {
+            nik,
+            name,
+            rt,
+            candidateId,
+            timestamp: new Date().toISOString()
+        });
+
+        alert("Terima kasih! Suara Anda berhasil disimpan.");
+        e.target.reset();
+        chosenCandidateId = null;
+        document.getElementById("selectedCandidateId").value = "";
+
+        await loadPublicResults();
+    } catch (error) {
+        console.error("Gagal menyimpan suara:", error);
+        alert("Suara gagal disimpan: " + error.message);
+    } finally {
+        button.disabled = false;
+        button.textContent = oldText;
+    }
+}
+
+function updateStats() {
+    const total = publicResults.reduce((sum, item) => {
+        return sum + Number(item.totalVotes ?? item.total ?? item.votes ?? item.count ?? 0);
+    }, 0);
+
+    document.getElementById("statTotalVotes").innerText = total;
+}
+
+function initChart() {
+    const canvas = document.getElementById("voteChart");
+    if (!canvas || typeof Chart === "undefined") return;
+
+    voteChartInstance = new Chart(canvas.getContext("2d"), {
+        type: "bar",
+        data: {
+            labels: candidates.map(c => `No. ${c.number} (${c.name})`),
+            datasets: [{
+                label: "Jumlah Suara",
+                data: candidates.map(c => getVoteCount(c.id)),
+                backgroundColor: ["#059669", "#0d9488", "#2563eb", "#d97706"],
+                borderRadius: 8
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: { beginAtZero: true, ticks: { stepSize: 1 } }
+            }
+        }
+    });
+}
+
+function updateChartData() {
+    if (!voteChartInstance) return;
+
+    voteChartInstance.data.labels = candidates.map(
+        c => `No. ${c.number} (${c.name})`
+    );
+
+    voteChartInstance.data.datasets[0].data =
+        candidates.map(c => getVoteCount(c.id));
+
+    voteChartInstance.update();
+}
+
+function openCandidateModal(id) {
+    const c = candidates.find(item => String(item.id) === String(id));
+    if (!c) return;
+
+    document.getElementById("modalCandidateContent").innerHTML = `
+        <div class="text-center">
+            <img src="${escapeHTML(c.photo)}" class="w-28 h-28 rounded-full object-cover mx-auto border-4 border-emerald-600 shadow-md">
+            <h4 class="font-bold text-lg text-slate-800 mt-2">${escapeHTML(c.name)}</h4>
+            <span class="bg-emerald-100 text-emerald-800 text-xs font-bold px-3 py-1 rounded-full">
+                Kandidat No. Urut ${escapeHTML(c.number)}
+            </span>
+            <p class="text-xs text-slate-500 italic mt-1">"${escapeHTML(c.tagline)}"</p>
+        </div>
+        <div class="space-y-3 pt-2">
+            <h5 class="font-bold text-slate-700 text-xs uppercase text-emerald-700 mb-1">Profil & Program Unggulan</h5>
+            <p class="text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-200 leading-relaxed">
+                ${escapeHTML(c.deskripsi)}
+            </p>
+        </div>`;
+
+    document.getElementById("candidateModal").classList.remove("hidden");
+}
+
+function closeCandidateModal() {
+    document.getElementById("candidateModal").classList.add("hidden");
+}
+
+function openAdminModal() {
+    document.getElementById("adminModal").classList.remove("hidden");
+}
+
+function closeAdminModal() {
+    document.getElementById("adminModal").classList.add("hidden");
+    document.getElementById("adminPinInput").value = "";
+}
+
+async function verifyAdminPin() {
+    const pin = document.getElementById("adminPinInput").value.trim();
+
+    if (!pin) {
+        alert("Masukkan password admin!");
+        return;
+    }
+
+    try {
+        const data = await workerRequest("login", { password: pin });
+
+        if (!data.token) {
+            throw new Error(data.error || "Token admin tidak diterima.");
+        }
+
+        window.adminUploadToken = data.token;
+
+        document.getElementById("adminLoginArea").classList.add("hidden");
+        document.getElementById("adminDashboardArea").classList.remove("hidden");
+
+        await loadCloudCandidates();
+        await loadAdminVotes();
+    } catch (error) {
+        console.error("Login admin gagal:", error);
+        alert(error.message);
+    }
+}
+
+async function loadAdminVotes() {
+    try {
+        const data = await workerRequest("listVotes", {}, true);
+        votes = Array.isArray(data.votes) ? data.votes : [];
+        renderAdminVotesTable();
+    } catch (error) {
+        console.error("Gagal memuat data suara admin:", error);
+        alert("Gagal memuat data suara: " + error.message);
+    }
+}
+
+function switchAdminTab(tab) {
+    const votesArea = document.getElementById("admin-content-votes");
+    const candidatesArea = document.getElementById("admin-content-candidates");
+
+    votesArea.classList.toggle("hidden", tab !== "votes");
+    candidatesArea.classList.toggle("hidden", tab !== "candidates");
+
+    document.getElementById("admin-tab-votes").className =
+        tab === "votes"
+            ? "px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-semibold"
+            : "px-4 py-2 bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold";
+
+    document.getElementById("admin-tab-candidates").className =
+        tab === "candidates"
+            ? "px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-semibold"
+            : "px-4 py-2 bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold";
+
+    if (tab === "votes") loadAdminVotes();
+    if (tab === "candidates") renderAdminCandidatesList();
+}
+
+function renderAdminVotesTable() {
+    const tbody = document.getElementById("adminVotesTableBody");
+    tbody.innerHTML = "";
+
+    if (!votes.length) {
+        tbody.innerHTML = `
+            <tr><td colspan="6" class="p-4 text-center text-slate-400">
+                Belum ada suara masuk.
+            </td></tr>`;
+        return;
+    }
+
+    votes.forEach(v => {
+        const cand = candidates.find(c =>
+            String(c.id) === String(v.candidateId)
+        );
+
+        const candName = cand
+            ? `No. ${cand.number} - ${cand.name}`
+            : "Kandidat tidak ditemukan";
+
+        tbody.innerHTML += `
+            <tr class="hover:bg-slate-50">
+                <td class="p-3">${escapeHTML(v.timestamp || "-")}</td>
+                <td class="p-3 font-mono">${escapeHTML(v.nik || "-")}</td>
+                <td class="p-3 font-medium">${escapeHTML(v.name || "-")}</td>
+                <td class="p-3">${escapeHTML(v.rt || v.dusun || "-")}</td>
+                <td class="p-3 font-semibold text-emerald-700">${escapeHTML(candName)}</td>
+                <td class="p-3 text-center">
+                    <button onclick="deleteVote('${escapeHTML(v.id)}')"
+                        class="text-red-500 hover:text-red-700 px-2 py-1">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+                </td>
+            </tr>`;
+    });
+}
+
+async function deleteVote(id) {
+    if (!confirm("Yakin ingin menghapus data suara ini?")) return;
+
+    try {
+        await workerRequest("deleteVote", { id: String(id) }, true);
+        await loadAdminVotes();
+        await loadPublicResults();
+        alert("Data suara berhasil dihapus.");
+    } catch (error) {
+        alert("Gagal menghapus suara: " + error.message);
+    }
+}
+
+function renderAdminCandidatesList() {
+    const container = document.getElementById("adminCandidatesList");
+    container.innerHTML = "";
+
+    candidates.forEach(c => {
+        container.innerHTML += `
+            <div class="border border-slate-200 p-4 rounded-xl flex items-center justify-between bg-slate-50">
+                <div class="flex items-center space-x-3">
+                    <img src="${escapeHTML(c.photo)}" class="w-12 h-12 rounded-full object-cover">
+                    <div>
+                        <span class="text-xs font-bold text-emerald-700">No. Urut ${escapeHTML(c.number)}</span>
+                        <h5 class="font-bold text-slate-800 text-xs">${escapeHTML(c.name)}</h5>
+                    </div>
+                </div>
+                <div class="flex gap-1">
+                    <button onclick="openEditCandidateModal('${escapeHTML(c.id)}')"
+                        class="bg-blue-100 text-blue-700 px-2.5 py-1.5 rounded-lg text-xs">
+                        <i class="fa-solid fa-pen"></i>
+                    </button>
+                    <button onclick="deleteCandidate('${escapeHTML(c.id)}')"
+                        class="bg-red-100 text-red-700 px-2.5 py-1.5 rounded-lg text-xs">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+                </div>
+            </div>`;
+    });
+}
+
+function openAddCandidateModal() {
+    document.getElementById("candidateFormTitle").innerText = "Tambah Kandidat Baru";
+    document.getElementById("candidateForm").reset();
+    document.getElementById("editCandidateId").value = "";
+    editCandidateCurrentPhoto = "";
+    document.getElementById("candidateFormModal").classList.remove("hidden");
+}
+
+function openEditCandidateModal(id) {
+    const c = candidates.find(item => String(item.id) === String(id));
+
+    if (!c) {
+        alert("Data kandidat tidak ditemukan.");
+        return;
+    }
+
+    document.getElementById("candidateFormTitle").innerText = "Edit Kandidat";
+    document.getElementById("editCandidateId").value = c.id;
+    document.getElementById("candNumber").value = c.number || "";
+    document.getElementById("candName").value = c.name || "";
+    document.getElementById("candTagline").value = c.tagline || "";
+    document.getElementById("candPhoto").value = "";
+    document.getElementById("candDeskripsi").value = c.deskripsi || "";
+    editCandidateCurrentPhoto = c.photo || "";
+
+    document.getElementById("candidateFormModal").classList.remove("hidden");
+}
+
+function closeCandidateFormModal() {
+    document.getElementById("candidateFormModal").classList.add("hidden");
+    document.getElementById("candidateForm").reset();
+    editCandidateCurrentPhoto = "";
+}
+
+function readFileAsBase64(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+
+        reader.onload = () => {
+            resolve(String(reader.result || "").split(",")[1] || "");
+        };
+
+        reader.onerror = () => reject(
+            new Error("Foto gagal dibaca dari galeri HP.")
+        );
+
+        reader.readAsDataURL(file);
+    });
+}
+
+async function uploadCandidatePhoto(file) {
+    if (!window.adminUploadToken) {
+        throw new Error("Sesi admin tidak ditemukan. Silakan login kembali.");
+    }
+
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+        throw new Error("Format foto harus JPG, PNG, atau WEBP.");
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+        throw new Error("Ukuran foto maksimal 5 MB.");
+    }
+
+    const content = await readFileAsBase64(file);
+
+    const data = await workerRequest("upload", {
+        filename: file.name,
+        content,
+        mimeType: file.type
+    }, true);
+
+    if (!data.photoUrl) {
+        throw new Error("Worker tidak mengirimkan alamat foto.");
+    }
+
+    return data.photoUrl;
+}
+
+async function saveCandidate(e) {
+    e.preventDefault();
+
+    const button = document.querySelector(
+        '#candidateForm button[type="submit"]'
+    );
+
+    const oldText = button.textContent;
+    button.disabled = true;
+
+    try {
+        const id = document.getElementById("editCandidateId").value;
+        const number = document.getElementById("candNumber").value.trim();
+        const name = document.getElementById("candName").value.trim();
+        const tagline = document.getElementById("candTagline").value.trim();
+        const file = document.getElementById("candPhoto").files[0];
+        const deskripsi = document.getElementById("candDeskripsi").value.trim();
+
+        if (!number || !name || !tagline || !deskripsi) {
+            throw new Error("Lengkapi semua data kandidat.");
+        }
+
+        let photo = editCandidateCurrentPhoto;
+
+        if (file) {
+            button.textContent = "Mengunggah foto...";
+            photo = await uploadCandidatePhoto(file);
+        } else if (!id && !photo) {
+            throw new Error("Pilih foto kandidat terlebih dahulu.");
+        }
+
+        button.textContent = "Menyimpan...";
+
+        await workerRequest("saveCandidate", {
+            candidate: { id, number, name, tagline, photo, deskripsi }
+        }, true);
+
+        await loadCloudCandidates();
+        closeCandidateFormModal();
+        renderAdminCandidatesList();
+
+        alert("Data kandidat berhasil disimpan.");
+    } catch (error) {
+        console.error("Simpan kandidat gagal:", error);
+        alert("Gagal menyimpan kandidat: " + error.message);
+    } finally {
+        button.disabled = false;
+        button.textContent = oldText;
+    }
+}
+
+async function deleteCandidate(id) {
+    if (!confirm("Hapus kandidat ini?")) return;
+
+    try {
+        await workerRequest("deleteCandidate", { id: String(id) }, true);
+        await loadCloudCandidates();
+        await loadPublicResults();
+        renderAdminCandidatesList();
+        alert("Kandidat berhasil dihapus.");
+    } catch (error) {
+        alert("Gagal menghapus kandidat: " + error.message);
+    }
+}
+
+function exportToCsv() {
+    if (!votes.length) {
+        alert("Belum ada data suara untuk diekspor.");
+        return;
+    }
+
+    const rows = [
+        ["Waktu", "NIK", "Nama Pemilih", "Dusun/Desa", "Pilihan Kandidat"]
+    ];
+
+    votes.forEach(v => {
+        const cand = candidates.find(c =>
+            String(c.id) === String(v.candidateId)
+        );
+
+        const candName = cand
+            ? `No. ${cand.number} - ${cand.name}`
+            : "Tidak Diketahui";
+
+        rows.push([
+            v.timestamp || "",
+            v.nik || "",
+            v.name || "",
+            v.rt || v.dusun || "",
+            candName
+        ]);
+    });
+
+    const csv = rows.map(row =>
+        row.map(value =>
+            `"${String(value).replace(/"/g, '""')}"`
+        ).join(",")
+    ).join("\r\n");
+
+    const blob = new Blob(["\uFEFF" + csv], {
+        type: "text/csv;charset=utf-8;"
+    });
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = "laporan_survey_pilkades_pakuan_2026.csv";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+
+    URL.revokeObjectURL(url);
+}
+
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
 
