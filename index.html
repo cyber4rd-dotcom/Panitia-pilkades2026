@@ -523,8 +523,8 @@
             });
         }
 
-        // Submit Suara ke Firebase
-        async function submitVote(e) {
+        // Submit Suara ke Cloudflare D1
+async function submitVote(e) {
     e.preventDefault();
 
     const nik = document.getElementById('voterNik').value.trim();
@@ -532,69 +532,61 @@
     const dusun = document.getElementById('voterDusun').value;
     const candidateId = document.getElementById('selectedCandidateId').value;
 
+    if (!nik || !name || !dusun) {
+        alert('Mohon lengkapi semua data pemilih!');
+        return;
+    }
+
     if (!candidateId) {
         alert('Silakan pilih salah satu kandidat terlebih dahulu!');
         return;
-    }        
-
-    if (!nik) {
-        alert('NIK wajib diisi!');
-        return;
     }
 
-    if (!window.db || !window.fbCollections) {
-    alert(
-        'DB: ' + !!window.db +
-        '\nFB: ' + !!window.fbCollections
-    );
-    return;
-}
-
-    const submitButton = document.querySelector('#voteForm button[type="submit"]');
-    if (submitButton) submitButton.disabled = true;
+    const tombol = e.submitter;
+    const teksAwal = tombol ? tombol.textContent : '';
 
     try {
-        const { collection, getDocs, addDoc, query, where } = window.fbCollections;
+        if (tombol) {
+            tombol.disabled = true;
+            tombol.textContent = 'Mengirim suara...';
+        }
 
-        const voteData = {
-    nik,
-    name,
-    dusun,
-    candidateId,
-    timestamp: new Date().toLocaleString('id-ID')
-};
+        const response = await fetch(WORKER_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                action: 'saveVote',
+                nik: nik,
+                name: name,
+                rt: dusun,
+                candidateId: candidateId,
+                timestamp: new Date().toISOString()
+            })
+        });
 
-const response = await fetch(
-    'https://upload-foto-pilkades.cyber4rd77.workers.dev/',
-    {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            action: 'saveVote',
-            ...voteData
-        })
-    }
-);
+        const data = await response.json();
 
-const result = await response.json();
+        if (!response.ok || !data.success) {
+            throw new Error(
+                data.error || 'Gagal menyimpan suara.'
+            );
+        }
 
-if (!response.ok || !result.success) {
-    throw new Error(result.message || 'Gagal menyimpan suara');
-}
-        alert('PENYIMPANAN SUARA BERHASIL');
+        alert('Terima kasih! Suara Anda berhasil disimpan.');
 
-        alert('Terima kasih! Suara Anda berhasil direkam.');
+        e.target.reset();
 
-        document.getElementById('voteForm').reset();
-        chosenCandidateId = null;
-        renderCandidates();
-        switchTab('statistics');
+    } catch (error) {
+        console.error('Submit vote error:', error);
+        alert('Suara gagal dikirim: ' + error.message);
 
-    } catch (err) {
-        console.error('Kesalahan voting:', err);
-        alert('Gagal mengirim suara: ' + err.message);
     } finally {
-        if (submitButton) submitButton.disabled = false;
+        if (tombol) {
+            tombol.disabled = false;
+            tombol.textContent = teksAwal;
+        }
     }
 }
 
