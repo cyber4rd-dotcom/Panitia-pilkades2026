@@ -18,25 +18,25 @@ const WORKER_URL = "https://upload-foto-pilkades.cyber4rd77.workers.dev/";
 
 let defaultCandidates = [
     {
-        id: "1", number: "01", name: "SARINGGEH.",
+        id: "1", number: "01", name: "ZULKARNAIN",
         tagline: "Desa Pakuan Maju, Transparan, dan Sejahtera",
         photo: "https://cdn.phototourl.com/member/2026-10-30-4c04b47d-0890-4f98-8e16-ec5fbc08c739.jpg",
         deskripsi: "Menjadikan Desa Pakuan sebagai desa mandiri berbasis teknologi, gotong royong, dan pelayanan publik yang responsif selama 24 jam."
     },
     {
-        id: "2", number: "02", name: "MARDAN HARIS.",
+        id: "2", number: "02", name: "SANUSI",
         tagline: "Pakuan Bersih, Agamis, dan Inovatif",
         photo: "https://cdn.phototourl.com/member/2026-10-30-d9a17252-6973-4d54-910c-a2ef538e4e64.jpg",
         deskripsi: "Mewujudkan tata kelola pemerintahan desa yang bersih, akuntabel, serta mengoptimalkan fasilitas kesehatan dan infrastruktur."
     },
     {
-        id: "3", number: "03", name: "SANUSI",
+        id: "3", number: "03", name: "SARINGGEH",
         tagline: "Gotong Royong Membangun Desa Pakuan",
         photo: "https://cdn.phototourl.com/member/2026-10-30-211952bf-7629-4f64-bd99-ff5b9337756d.jpg",
         deskripsi: "Membangun ekonomi kerakyatan yang kuat melalui sektor pertanian, perbaikan sistem irigasi, dan peningkatan keamanan lingkungan."
     },
     {
-        id: "4", number: "04", name: "ZULKARNAIN",
+        id: "4", number: "04", name: "MARDAN HARIS",
         tagline: "Pakuan Kreatif, Muda, dan Berdaya Saing",
         photo: "https://cdn.phototourl.com/member/2026-10-30-e4e6fc90-5b28-4aa8-bdbf-4e0301684a6d.jpg",
         deskripsi: "Mendorong pemberdayaan pemuda, kemandirian UMKM berbasis digital, serta transparansi anggaran pembangunan desa."
@@ -126,33 +126,27 @@ async function loadCloudCandidates() {
 }
 
 
+
 async function loadPublicResults() {
     try {
         const data = await workerRequest("getResults");
 
         if (!data || data.success !== true) {
-            console.error("Gagal mengambil statistik:", data);
+            console.error("Format statistik Worker tidak sesuai:", data);
             return;
         }
 
-        publicResults = data.summary || [];
+        publicResults = Array.isArray(data.summary)
+            ? data.summary
+            : [];
 
-        const totalVotes = Number(data.total || 0);
-
-        // Perbarui jumlah suara
-        const totalElement = document.getElementById("total-votes");
-        if (totalElement) {
-            totalElement.textContent = totalVotes;
-        }
-
-        // Perbarui statistik kandidat
         updateStats();
-
-        // Perbarui grafik
         updateChartData();
 
+        console.log("Statistik berhasil dimuat:", data.total, publicResults);
+
     } catch (error) {
-        console.error("Gagal memuat statistik:", error);
+        console.error("Gagal memuat statistik publik:", error);
     }
 }
 
@@ -178,9 +172,12 @@ function switchTab(tabId) {
     }
 }
 
+
 function renderCandidates() {
     const votingContainer = document.getElementById("votingCandidateCards");
     const profileContainer = document.getElementById("candidateListContainer");
+
+    if (!votingContainer || !profileContainer) return;
 
     votingContainer.innerHTML = "";
     profileContainer.innerHTML = "";
@@ -189,15 +186,20 @@ function renderCandidates() {
         const id = escapeHTML(c.id);
         const name = escapeHTML(c.name);
         const number = escapeHTML(c.number);
-        const tagline = escapeHTML(c.tagline);
-        const photo = escapeHTML(c.photo);
-        const description = escapeHTML(c.deskripsi);
+        const tagline = escapeHTML(c.tagline || "");
+        const description = escapeHTML(c.deskripsi || "");
+
+        const photo = c.photo && String(c.photo).trim()
+            ? escapeHTML(c.photo)
+            : "https://placehold.co/300x300?text=Foto+Kandidat";
 
         votingContainer.innerHTML += `
             <div class="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col justify-between shadow-sm hover:border-emerald-500 transition cursor-pointer"
                  onclick="selectCandidateCard('${id}')" id="card-cand-${id}">
                 <div class="flex items-center space-x-3 mb-3">
-                    <img src="${photo}" alt="${name}" class="w-16 h-16 rounded-full object-cover border-2 border-emerald-600">
+                    <img src="${photo}" alt="${name}"
+                         onerror="this.onerror=null;this.src='https://placehold.co/300x300?text=Foto+Tidak+Tersedia'"
+                         class="w-16 h-16 rounded-full object-cover border-2 border-emerald-600">
                     <div>
                         <span class="bg-emerald-100 text-emerald-800 text-xs font-bold px-2.5 py-0.5 rounded-full">No. Urut ${number}</span>
                         <h4 class="font-bold text-slate-800 text-sm mt-1">${name}</h4>
@@ -217,7 +219,9 @@ function renderCandidates() {
             <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col justify-between">
                 <div>
                     <div class="text-center mb-4">
-                        <img src="${photo}" alt="${name}" class="w-24 h-24 rounded-full object-cover mx-auto border-4 border-emerald-600 shadow-md">
+                        <img src="${photo}" alt="${name}"
+                             onerror="this.onerror=null;this.src='https://placehold.co/300x300?text=Foto+Tidak+Tersedia'"
+                             class="w-24 h-24 rounded-full object-cover mx-auto border-4 border-emerald-600 shadow-md">
                         <span class="inline-block mt-3 bg-emerald-100 text-emerald-800 text-xs font-bold px-3 py-1 rounded-full">Kandidat No. ${number}</span>
                         <h3 class="font-bold text-slate-800 text-base mt-1">${name}</h3>
                         <p class="text-xs text-slate-500 italic">"${tagline}"</p>
