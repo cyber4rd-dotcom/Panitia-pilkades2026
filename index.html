@@ -339,26 +339,23 @@ function initChart() {
 }
 
 
-function updateChartData() {
-    if (!voteChartInstance) {
-        initChart();
-    }
 
+function updateChartData() {
     if (!voteChartInstance) return;
 
-    const labels = candidates.map(c => c.name);
-    const values = candidates.map(candidate => {
+    voteChartInstance.data.labels = candidates.map(
+        c => `No. ${c.number} (${c.name})`
+    );
+
+    voteChartInstance.data.datasets[0].data = candidates.map(c => {
         const result = publicResults.find(
-            item => String(item.candidateId) === String(candidate.id)
+            r => String(r.candidateId) === String(c.id)
         );
 
-        return result ? Number(result.total) : 0;
+        return Number(result?.total || 0);
     });
 
-    voteChartInstance.data.labels = labels;
-    voteChartInstance.data.datasets[0].data = values;
-
-    voteChartInstance.update("none");
+    voteChartInstance.update();
 }
 
 
