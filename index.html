@@ -338,18 +338,29 @@ function initChart() {
     });
 }
 
+
 function updateChartData() {
+    if (!voteChartInstance) {
+        initChart();
+    }
+
     if (!voteChartInstance) return;
 
-    voteChartInstance.data.labels = candidates.map(
-        c => `No. ${c.number} (${c.name})`
-    );
+    const labels = candidates.map(c => c.name);
+    const values = candidates.map(candidate => {
+        const result = publicResults.find(
+            item => String(item.candidateId) === String(candidate.id)
+        );
 
-    voteChartInstance.data.datasets[0].data =
-        candidates.map(c => getVoteCount(c.id));
+        return result ? Number(result.total) : 0;
+    });
 
-    voteChartInstance.update();
+    voteChartInstance.data.labels = labels;
+    voteChartInstance.data.datasets[0].data = values;
+
+    voteChartInstance.update("none");
 }
+
 
 function openCandidateModal(id) {
     const c = candidates.find(item => String(item.id) === String(id));
