@@ -125,29 +125,37 @@ async function loadCloudCandidates() {
     }
 }
 
+
 async function loadPublicResults() {
     try {
         const data = await workerRequest("getResults");
 
-        publicResults = data.results || data.totals || data.candidates || [];
+        if (!data || data.success !== true) {
+            console.error("Gagal mengambil statistik:", data);
+            return;
+        }
+
+        publicResults = data.summary || [];
+
+        const totalVotes = Number(data.total || 0);
+
+        // Perbarui jumlah suara
+        const totalElement = document.getElementById("total-votes");
+        if (totalElement) {
+            totalElement.textContent = totalVotes;
+        }
+
+        // Perbarui statistik kandidat
         updateStats();
+
+        // Perbarui grafik
         updateChartData();
+
     } catch (error) {
-        console.error("Gagal memuat statistik publik:", error);
+        console.error("Gagal memuat statistik:", error);
     }
 }
 
-function getVoteCount(candidateId) {
-    const item = publicResults.find(row =>
-        String(row.candidateId ?? row.id) === String(candidateId)
-    );
-
-    if (!item) return 0;
-
-    return Number(
-        item.totalVotes ?? item.total ?? item.votes ?? item.count ?? 0
-    );
-}
 
 function switchTab(tabId) {
     document.querySelectorAll(".tab-content").forEach(el =>
