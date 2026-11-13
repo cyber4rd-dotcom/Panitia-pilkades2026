@@ -399,14 +399,21 @@
         }
 
         async function loadPublicResults() {
-            try {
-                const data = await workerRequest("getResults");
-                publicResults = data.results || data.totals || data.candidates || [];
-                updateStats();
-                updateChartData();
-            } catch (error) {
-                console.error("Gagal memuat statistik publik:", error);
-            }
+    try {
+        const data = await workerRequest("getResults");
+
+        publicResults = data.summary
+            || data.results
+            || data.totals
+            || data.candidates
+            || [];
+
+        updateStats();
+        updateChartData();
+
+    } catch (error) {
+        console.error("Gagal memuat statistik publik:", error);
+    }
         }
 
         function getVoteCount(candidateId) {
